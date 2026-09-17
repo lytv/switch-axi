@@ -35,10 +35,6 @@ export const HELP = {
     "rooms",
     "switch-axi rooms list|show",
     "List or show Switch rooms.",
-    {
-      "--scope": "mine|instance",
-      "--include-archived": "include archived rooms",
-    },
   ),
   read: help(
     "read",
@@ -68,9 +64,9 @@ export const HELP = {
   ),
   attach: help(
     "attach",
-    "switch-axi attach <room_id> <path...>",
+    "switch-axi attach <room_id> <path>",
     "Attach files. This action is non-idempotent.",
-    { "--thread": "message event id", "--caption": "message caption" },
+    { "--thread": "message event id" },
   ),
   fetch: help(
     "fetch",
@@ -153,23 +149,12 @@ export async function roomsCommand(
   factory = makeClient,
 ): Promise<string> {
   if (args.includes("--help")) return output(HELP.rooms, context);
-  const { positionals, flags } = parseArgs(args, {
-    "--scope": "value",
-    "--include-archived": "boolean",
-  });
+  const { positionals } = parseArgs(args, {});
   const action = positionals.shift();
   if (action === "list") {
     if (positionals.length)
-      throw new Error(
-        "usage: switch-axi rooms list [--scope mine|instance] [--include-archived]",
-      );
-    const scope = flags["--scope"] ?? "mine";
-    if (scope !== "mine" && scope !== "instance")
-      throw new Error("--scope must be mine or instance");
-    const operation = scope === "instance" ? "list_all_rooms" : "list_rooms";
-    const rooms = await client(context, factory).call(operation, {
-      include_archived: flags["--include-archived"] === true,
-    });
+      throw new Error("usage: switch-axi rooms list");
+    const rooms = await client(context, factory).call("list_rooms", {});
     return output(
       {
         rooms: Array.isArray(rooms) ? rooms : [],
@@ -280,19 +265,14 @@ export async function attachCommand(
   factory = makeClient,
 ): Promise<string> {
   if (args.includes("--help")) return output(HELP.attach, context);
-  const { positionals, flags } = parseArgs(args, {
-    "--thread": "value",
-    "--caption": "value",
-  });
-  if (positionals.length < 2)
-    throw new Error("usage: switch-axi attach <room_id> <path...>");
-  const [roomId, ...paths] = positionals;
+  const { positionals, flags } = parseArgs(args, { "--thread": "value" });
+  requireCount(positionals, 2, "switch-axi attach <room_id> <path>");
+  const [roomId, path] = positionals;
   return output(
     {
       attach: await client(context, factory).attach(
         roomId,
-        paths.map((path) => resolve(context.cwd, path)),
-        flags["--caption"] as string | undefined,
+        resolve(context.cwd, path),
         flags["--thread"] as string | undefined,
       ),
       idempotency: "non-idempotent: do not retry an ambiguous timeout",

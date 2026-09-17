@@ -55,16 +55,12 @@ export class SwitchClient {
 
   async attach(
     roomId: string,
-    paths: string[],
-    caption?: string,
+    path: string,
     threadId?: string,
   ): Promise<unknown> {
     const form = new FormData();
-    for (const path of paths) {
-      const bytes = new Uint8Array(await readFile(path));
-      form.append("files", new Blob([bytes]), basename(path));
-    }
-    if (caption) form.append("caption", caption);
+    const bytes = new Uint8Array(await readFile(path));
+    form.append("files", new Blob([bytes]), basename(path));
     if (threadId) form.append("thread_id", threadId);
     return this.response(
       await fetch(`${this.baseUrl}/rooms/${encodeURIComponent(roomId)}/media`, {
