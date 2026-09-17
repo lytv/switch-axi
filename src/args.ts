@@ -1,5 +1,15 @@
 export type Flags = Record<string, string | boolean | string[]>;
 
+const literalPrefix = "\0";
+
+export function literal(value: string): string {
+  return `${literalPrefix}${value}`;
+}
+
+export function unliteral(value: string): string {
+  return value.startsWith(literalPrefix) ? value.slice(literalPrefix.length) : value;
+}
+
 export function parseArgs(
   args: string[],
   allowed: Record<string, "value" | "repeat" | "boolean">,

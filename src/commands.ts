@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { parseArgs, requireCount } from "./args.js";
+import { parseArgs, requireCount, unliteral } from "./args.js";
 import { SwitchClient } from "./client.js";
 import { resolveCredentials, type ResolveOptions } from "./credentials.js";
 import { render, truncate } from "./render.js";
@@ -238,7 +238,8 @@ export async function sendCommand(
     "--role": "repeat",
   });
   requireCount(positionals, 2, "switch-axi send <room_id> <body>");
-  const [roomId, body] = positionals;
+  const [roomId, rawBody] = positionals;
+  const body = unliteral(rawBody);
   const names = (flags["--to"] as string[] | undefined) ?? [];
   const roles = (flags["--role"] as string[] | undefined) ?? [];
   const operation =

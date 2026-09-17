@@ -44,6 +44,7 @@ switch-axi fetch <room_id> mxc://server/media-id ./plan.md
 ```
 
 Every room command takes an explicit `room_id`. `send` and `attach` are non-idempotent. Do not retry an ambiguous timeout.
+Use `--` before a send body that starts with a dash.
 
 The CLI calls Switch operations HTTP endpoints and media routes directly. It sends `room_id` to `post_message`, `send_targeted_message`, and `list_participants`. Current Switch servers need the planned explicit-room operation update for those three calls. Reads, room lists, auth, generic safe reads, and media routes work without that update.
 

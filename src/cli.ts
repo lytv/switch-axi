@@ -1,4 +1,5 @@
 import { runAxiCli } from "axi-sdk-js";
+import { literal } from "./args.js";
 import {
   agentsCommand,
   attachCommand,
@@ -40,6 +41,10 @@ function globals(argv: string[]) {
   const rest: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === "--") {
+      rest.push(...argv.slice(index));
+      break;
+    }
     if (arg === "--json") {
       json = true;
       continue;
@@ -58,11 +63,21 @@ function globals(argv: string[]) {
   return { argv: rest, context: { cwd, agent, json } };
 }
 
+function sendArgs(argv: string[]): string[] {
+  if (argv[0] !== "send") return argv;
+  const separator = argv.indexOf("--");
+  if (separator < 0) return argv;
+  return [
+    ...argv.slice(0, separator),
+    ...argv.slice(separator + 1).map(literal),
+  ];
+}
+
 export async function main(options: MainOptions = {}): Promise<void> {
   const parsed = globals(options.argv ?? process.argv.slice(2));
   const context = parsed.context;
   await runAxiCli({
-    argv: parsed.argv,
+    argv: sendArgs(parsed.argv),
     ...(options.stdout ? { stdout: options.stdout } : {}),
     description: "Manage Switch messaging resources for agents.",
     version: VERSION,
@@ -77,6 +92,9 @@ export async function main(options: MainOptions = {}): Promise<void> {
       fetch: (args) => fetchCommand(args, context),
       agents: (args) => agentsCommand(args, context),
       ops: (args) => opsCommand(args, context),
+      update: () => {
+        throw new Error("self-update is not supported");
+      },
     },
     home: () => TOP_HELP,
     getCommandHelp: (command) => {
