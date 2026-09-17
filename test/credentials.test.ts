@@ -42,6 +42,27 @@ describe("resolveCredentials", () => {
     });
   });
 
+  it("uses the selected store agent instead of environment credentials", async () => {
+    const cwd = await workspace();
+    await agent(cwd, "qa", "qa-id");
+    expect(
+      resolveCredentials({
+        cwd,
+        agent: "qa",
+        env: {
+          SWITCH_API_ENDPOINT: "https://switch.example/",
+          SWITCH_API_TOKEN: "environment-token",
+          SWITCH_AGENT_ID: "env-id",
+        },
+      }),
+    ).toMatchObject({
+      source: "store",
+      slug: "qa",
+      agentId: "qa-id",
+      token: "token-qa",
+    });
+  });
+
   it("reads the only store agent", async () => {
     const cwd = await workspace();
     await agent(cwd, "pm", "pm-id");

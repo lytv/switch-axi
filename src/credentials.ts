@@ -76,6 +76,16 @@ function legacy(cwd: string, slug: string): Parsed | undefined {
 
 export function resolveCredentials(options: ResolveOptions): Credentials {
   const env = options.env ?? process.env;
+  const agents = store(options.cwd);
+  if (options.agent) {
+    const selected = agents.find((agent) => agent.slug === options.agent);
+    if (selected) return { ...selected, source: "store" };
+    const fallback = legacy(options.cwd, options.agent);
+    if (fallback) return { ...fallback, source: "claude-legacy" };
+    throw new Error(
+      `no Switch credentials for agent ${options.agent} in ${options.cwd}`,
+    );
+  }
   const endpoint = string(env.SWITCH_API_ENDPOINT);
   const token = string(env.SWITCH_API_TOKEN);
   const agentId = string(env.SWITCH_AGENT_ID);
@@ -94,16 +104,6 @@ export function resolveCredentials(options: ResolveOptions): Credentials {
       "incomplete SWITCH_* environment: set endpoint, token, and agent id, or unset all three",
     );
 
-  const agents = store(options.cwd);
-  if (options.agent) {
-    const selected = agents.find((agent) => agent.slug === options.agent);
-    if (selected) return { ...selected, source: "store" };
-    const fallback = legacy(options.cwd, options.agent);
-    if (fallback) return { ...fallback, source: "claude-legacy" };
-    throw new Error(
-      `no Switch credentials for agent ${options.agent} in ${options.cwd}`,
-    );
-  }
   if (agents.length === 1) return { ...agents[0], source: "store" };
   if (agents.length > 1)
     throw new Error(
