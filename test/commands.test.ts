@@ -42,9 +42,9 @@ describe("rooms command", () => {
       attach: async () => ({}),
       fetch: async () => {},
     }));
-    await expect(roomsCommand(["list", "--scope", "instance"], context)).rejects.toThrow(
-      "unknown flag: --scope",
-    );
+    await expect(
+      roomsCommand(["list", "--scope", "instance"], context),
+    ).rejects.toThrow("unknown flag: --scope");
   });
 });
 
@@ -56,14 +56,18 @@ describe("attach command", () => {
       expect(threadId).toBe("event-1");
       return {};
     };
-    await attachCommand(["room-1", "plan.md", "--thread", "event-1"], context, () => ({
-      call: async () => ({}),
-      operations: async () => ({}),
-      attach,
-      fetch: async () => {},
-    }));
-    await expect(attachCommand(["room-1", "one.md", "two.md"], context)).rejects.toThrow(
-      "usage: switch-axi attach <room_id> <path>",
+    await attachCommand(
+      ["room-1", "plan.md", "--thread", "event-1"],
+      context,
+      () => ({
+        call: async () => ({}),
+        operations: async () => ({}),
+        attach,
+        fetch: async () => {},
+      }),
     );
+    await expect(
+      attachCommand(["room-1", "one.md", "two.md"], context),
+    ).rejects.toThrow("usage: switch-axi attach <room_id> <path>");
   });
 });

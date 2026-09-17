@@ -7,7 +7,9 @@ export function literal(value: string): string {
 }
 
 export function unliteral(value: string): string {
-  return value.startsWith(literalPrefix) ? value.slice(literalPrefix.length) : value;
+  return value.startsWith(literalPrefix)
+    ? value.slice(literalPrefix.length)
+    : value;
 }
 
 export function parseArgs(

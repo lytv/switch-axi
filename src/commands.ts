@@ -152,8 +152,7 @@ export async function roomsCommand(
   const { positionals } = parseArgs(args, {});
   const action = positionals.shift();
   if (action === "list") {
-    if (positionals.length)
-      throw new Error("usage: switch-axi rooms list");
+    if (positionals.length) throw new Error("usage: switch-axi rooms list");
     const rooms = await client(context, factory).call("list_rooms", {});
     return output(
       {
