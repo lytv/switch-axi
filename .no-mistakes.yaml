@@ -1,0 +1,4 @@
+# Per-repo no-mistakes overrides.
+commands:
+  test: "pnpm test"
+  lint: "pnpm run lint"
