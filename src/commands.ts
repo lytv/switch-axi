@@ -593,9 +593,12 @@ async function cloneRepo(
     const cleanupNote = cleanup
       ? `removed ${dest}`
       : `failed to remove ${dest}; it may still exist`;
-    throw new Error(`git clone failed; ${cleanupNote}. ${execErrorText(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `git clone failed; ${cleanupNote}. ${execErrorText(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 }
 
