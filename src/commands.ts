@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { rename, unlink, writeFile } from "node:fs/promises";
 import { parseArgs, requireCount, unliteral } from "./args.js";
 import { SwitchClient } from "./client.js";
 import { resolveCredentials, type ResolveOptions } from "./credentials.js";
@@ -15,6 +16,7 @@ const allowedOps = new Set([
   "read_context",
   "list_agents",
   "get_agent_detail",
+  "create_agent",
 ]);
 const makeClient: ClientFactory = (context) =>
   new SwitchClient(resolveCredentials(context));
@@ -75,8 +77,16 @@ export const HELP = {
   ),
   agents: help(
     "agents",
-    "switch-axi agents list|show",
-    "List or show Switch agents.",
+    "switch-axi agents list|show|create",
+    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings.",
+    {
+      "--type": "agent type: claude-code|codex|opencode (create)",
+      "--name": "agent name (create)",
+      "--desc": "agent description (create)",
+      "--option": "extra k=v option; repeat (create)",
+      "--icon-url": "icon URL (create)",
+      "--display-name": "display name (create)",
+    },
   ),
   ops: help(
     "ops",
@@ -314,7 +324,121 @@ export async function agentsCommand(
       },
       context,
     );
-  throw new Error("usage: switch-axi agents list|show <agent_id>");
+  if (args[0] === "create") return createAgent(args.slice(1), context, factory);
+  throw new Error(
+    "usage: switch-axi agents list|show <agent_id>|create --type <claude-code|codex|opencode> --name <name> --desc <description>",
+  );
+}
+
+const agentTypes = ["claude-code", "codex", "opencode"];
+
+const createUsage =
+  "switch-axi agents create --type <claude-code|codex|opencode> --name <name> --desc <description> [--option k=v ...] [--icon-url <url>] [--display-name <name>]";
+
+async function createAgent(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    "--type": "value",
+    "--name": "value",
+    "--desc": "value",
+    "--option": "repeat",
+    "--icon-url": "value",
+    "--display-name": "value",
+  });
+  if (positionals.length) throw new Error(`usage: ${createUsage}`);
+  const type = flags["--type"] as string | undefined;
+  const name = flags["--name"] as string | undefined;
+  const desc = flags["--desc"] as string | undefined;
+  if (!type || !name || !desc) throw new Error(`usage: ${createUsage}`);
+  if (!agentTypes.includes(type))
+    throw new Error(
+      `--type must be one of ${agentTypes.join(", ")}, got: ${type}`,
+    );
+  if (
+    name.includes("/") ||
+    name.includes("\\") ||
+    name === "." ||
+    name === ".."
+  )
+    throw new Error(`--name must be a plain file-safe name, got: ${name}`);
+  const options: Record<string, string> = {};
+  for (const item of (flags["--option"] as string[] | undefined) ?? []) {
+    const separator = item.indexOf("=");
+    if (separator < 1) throw new Error(`--option must be k=v, got: ${item}`);
+    options[item.slice(0, separator)] = item.slice(separator + 1);
+  }
+  let result: unknown;
+  try {
+    result = await client(context, factory).call("create_agent", {
+      agent_type: type,
+      name,
+      description: desc,
+      ...(Object.keys(options).length ? { options } : {}),
+      ...(flags["--icon-url"] ? { icon_url: flags["--icon-url"] } : {}),
+      ...(flags["--display-name"]
+        ? { display_name: flags["--display-name"] }
+        : {}),
+    });
+  } catch (error) {
+    throw friendlierCreateError(name, error);
+  }
+  if (
+    !result ||
+    typeof result !== "object" ||
+    typeof (result as Record<string, unknown>).id !== "string" ||
+    typeof (result as Record<string, unknown>).api_key !== "string"
+  )
+    throw new Error("Switch API returned an unexpected create_agent response");
+  const { id, api_key: apiKey } = result as { id: string; api_key: string };
+  const credentialFile = resolve(context.cwd, `${name}.switch-agent-key.json`);
+  await writeKeyFile(credentialFile, JSON.stringify({ id, api_key: apiKey }));
+  return output(
+    {
+      id,
+      name,
+      credential_file: credentialFile,
+      note: "Use this file to configure the new agent's own credential store separately; this command does not do that configuration.",
+    },
+    context,
+  );
+}
+
+function friendlierCreateError(name: string, error: unknown): Error {
+  if (!(error instanceof Error))
+    return new Error(`failed to create agent ${name}`);
+  if (error.message.includes("HTTP 403"))
+    return new Error(
+      `create_agent was denied (HTTP 403): the target agent's owner has not granted this permission in the gateway settings. Ask the owner to grant it, then retry. Detail: ${error.message}`,
+    );
+  if (error.message.includes("HTTP 409"))
+    return new Error(
+      `agent "${name}" already exists (HTTP 409): create is create-only, pick a different --name. Detail: ${error.message}`,
+    );
+  return error;
+}
+
+async function writeKeyFile(path: string, payload: string): Promise<void> {
+  const temp = `${path}.${process.pid}.tmp`;
+  try {
+    await writeFile(temp, payload, { mode: 0o600 });
+  } catch (error) {
+    throw new Error(
+      `failed to write credential file ${path}: ${(error as Error).message}`,
+      { cause: error },
+    );
+  }
+  try {
+    await rename(temp, path);
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    throw new Error(
+      `failed to write credential file ${path}: ${(error as Error).message}`,
+      { cause: error },
+    );
+  }
 }
 
 export async function opsCommand(
