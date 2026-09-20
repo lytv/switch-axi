@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { rename, unlink, writeFile } from "node:fs/promises";
+import { chmod, rename, unlink, writeFile } from "node:fs/promises";
 import { parseArgs, requireCount, unliteral } from "./args.js";
 import { SwitchClient } from "./client.js";
 import { resolveCredentials, type ResolveOptions } from "./credentials.js";
@@ -16,7 +16,6 @@ const allowedOps = new Set([
   "read_context",
   "list_agents",
   "get_agent_detail",
-  "create_agent",
 ]);
 const makeClient: ClientFactory = (context) =>
   new SwitchClient(resolveCredentials(context));
@@ -422,9 +421,20 @@ function friendlierCreateError(name: string, error: unknown): Error {
 
 async function writeKeyFile(path: string, payload: string): Promise<void> {
   const temp = `${path}.${process.pid}.tmp`;
+  await unlink(temp).catch(() => {});
   try {
     await writeFile(temp, payload, { mode: 0o600 });
   } catch (error) {
+    await unlink(temp).catch(() => {});
+    throw new Error(
+      `failed to write credential file ${path}: ${(error as Error).message}`,
+      { cause: error },
+    );
+  }
+  try {
+    await chmod(temp, 0o600);
+  } catch (error) {
+    await unlink(temp).catch(() => {});
     throw new Error(
       `failed to write credential file ${path}: ${(error as Error).message}`,
       { cause: error },
