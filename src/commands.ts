@@ -485,7 +485,7 @@ async function createAgent(
     `Open Switch Console and drag ${workingDir} onto the sidebar.`,
     "Local agents need a one-time auto-approve toggle in Console settings for unattended operation.",
   ];
-  if (!sendOwnerOnly && ownerOnlyFlag !== undefined)
+  if (!sendOwnerOnly)
     notes.push(
       "This Switch server does not advertise owner_only on create_agent; the flag was omitted.",
     );
@@ -586,11 +586,16 @@ async function cloneRepo(
       env: { ...env, GIT_TERMINAL_PROMPT: "0" },
     });
   } catch (error) {
-    await rm(dest, { recursive: true, force: true }).catch(() => {});
-    throw new Error(
-      `git clone failed; removed ${dest}. ${execErrorText(error)}`,
-      { cause: error },
+    const cleanup = await rm(dest, { recursive: true, force: true }).then(
+      () => true,
+      () => false,
     );
+    const cleanupNote = cleanup
+      ? `removed ${dest}`
+      : `failed to remove ${dest}; it may still exist`;
+    throw new Error(`git clone failed; ${cleanupNote}. ${execErrorText(error)}`, {
+      cause: error,
+    });
   }
 }
 
