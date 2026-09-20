@@ -15,6 +15,8 @@ const allowedOps = new Set([
   "read_context",
   "list_agents",
   "get_agent_detail",
+  "create_room",
+  "list_bridges",
 ]);
 const makeClient: ClientFactory = (context) =>
   new SwitchClient(resolveCredentials(context));
@@ -33,8 +35,19 @@ export const HELP = {
   ),
   rooms: help(
     "rooms",
-    "switch-axi rooms list|show",
-    "List or show Switch rooms.",
+    "switch-axi rooms list|show|create",
+    "List, show, or create Switch rooms. Creation is non-idempotent.",
+    {
+      "--name": "room name (create)",
+      "--desc": "room description (create)",
+      "--agent": "agent name; repeat (create)",
+      "--user": "user name; repeat (create)",
+      "--bridge": "bridge id; requires --channel-type (create)",
+      "--internal-only": "skip bridging (create)",
+      "--channel-type": "channel type (create)",
+      "--instructions": "room instructions (create)",
+      "--args-json": "extra create_room fields as JSON object",
+    },
   ),
   read: help(
     "read",
@@ -149,6 +162,8 @@ export async function roomsCommand(
   factory = makeClient,
 ): Promise<string> {
   if (args.includes("--help")) return output(HELP.rooms, context);
+  if (args[0] === "create")
+    return roomsCreateCommand(args.slice(1), context, factory);
   const { positionals } = parseArgs(args, {});
   const action = positionals.shift();
   if (action === "list") {
@@ -173,7 +188,88 @@ export async function roomsCommand(
       context,
     );
   }
-  throw new Error("rooms supports list or show");
+  throw new Error("rooms supports list, show, or create");
+}
+
+const ROOMS_CREATE_USAGE =
+  "switch-axi rooms create --name <n> --desc <d> --agent <name> [--agent ...] [--user <name> ...] [--bridge <id> | --internal-only] [--channel-type <t>] [--instructions <text>] [--args-json '<object>']";
+
+async function roomsCreateCommand(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    "--name": "value",
+    "--desc": "value",
+    "--agent": "repeat",
+    "--user": "repeat",
+    "--bridge": "value",
+    "--internal-only": "boolean",
+    "--channel-type": "value",
+    "--instructions": "value",
+    "--args-json": "value",
+  });
+  // ponytail: --admin-mode/security_config stay out as first-class flags
+  // (no server authz on admin_mode); they pass only via --args-json.
+  if (positionals.length) throw new Error(`usage: ${ROOMS_CREATE_USAGE}`);
+  const name = flags["--name"] as string | undefined;
+  const description = flags["--desc"] as string | undefined;
+  const agents = (flags["--agent"] as string[] | undefined) ?? [];
+  if (!name || !description || !agents.length)
+    throw new Error(`usage: ${ROOMS_CREATE_USAGE}`);
+  const bridge = flags["--bridge"] as string | undefined;
+  const internalOnly = flags["--internal-only"] === true;
+  if (bridge && internalOnly)
+    throw new Error("--bridge and --internal-only are mutually exclusive");
+  const channelType = flags["--channel-type"] as string | undefined;
+  if (bridge && !channelType)
+    throw new Error("--channel-type is required when --bridge is passed");
+  const users = (flags["--user"] as string[] | undefined) ?? [];
+  const instructions = flags["--instructions"] as string | undefined;
+  let extra: Record<string, unknown> = {};
+  const source = flags["--args-json"];
+  if (source !== undefined) {
+    if (typeof source !== "string") throw new Error("--args-json is required");
+    try {
+      const value: unknown = JSON.parse(source);
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error();
+      extra = value as Record<string, unknown>;
+    } catch {
+      throw new Error("--args-json must be one JSON object");
+    }
+  }
+  const result = (await client(context, factory).call("create_room", {
+    ...extra,
+    name,
+    description,
+    agent_names: agents,
+    ...(users.length ? { user_names: users } : {}),
+    ...(bridge ? { bridge_id: bridge } : {}),
+    ...(internalOnly ? { internal_only: true } : {}),
+    ...(channelType ? { channel_type: channelType } : {}),
+    ...(instructions !== undefined ? { instructions } : {}),
+  })) as Record<string, unknown>;
+  const room =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? result
+      : {};
+  return output(
+    {
+      room: {
+        id: room.id,
+        name: room.name,
+        transport_room_id: room.transport_room_id,
+      },
+      failed_attachments: Array.isArray(room.failed_attachments)
+        ? room.failed_attachments
+        : [],
+      idempotency:
+        "non-idempotent: each call creates a new room; check `rooms list` before retrying",
+    },
+    context,
+  );
 }
 
 export async function readCommand(

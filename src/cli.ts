@@ -20,10 +20,11 @@ commands[9]:
   auth, rooms, read, participants, send, attach, fetch, agents, ops
 output:
   Default output is TOON. Use --json for JSON.
-  Sends and attachments are non-idempotent. Do not retry an ambiguous timeout.
+  Sends, attachments, and room creation are non-idempotent. Do not retry an ambiguous timeout.
 examples:
   switch-axi auth status
   switch-axi rooms list
+  switch-axi rooms create --name <n> --desc <d> --agent <name>
   switch-axi read <room_id> --limit 20
   switch-axi send <room_id> "status?" --to pm
   switch-axi attach <room_id> ./plan.md
