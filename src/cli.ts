@@ -40,6 +40,7 @@ function globals(argv: string[]) {
   let agent: string | undefined;
   let json = false;
   const rest: string[] = [];
+  let seenCommand = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--") {
@@ -50,7 +51,10 @@ function globals(argv: string[]) {
       json = true;
       continue;
     }
-    if (arg === "--cwd" || arg === "--agent") {
+    // ponytail: --cwd/--agent are leading-only globals. Commands own their
+    // flags after the command token (rooms create uses repeatable --agent),
+    // so a command-position --agent must reach the command, not the store.
+    if (!seenCommand && (arg === "--cwd" || arg === "--agent")) {
       const value = argv[index + 1];
       if (!value || value.startsWith("--"))
         throw new Error(`${arg} requires a value`);
@@ -59,6 +63,7 @@ function globals(argv: string[]) {
       else agent = value;
       continue;
     }
+    if (!arg.startsWith("--")) seenCommand = true;
     rest.push(arg);
   }
   return { argv: rest, context: { cwd, agent, json } };
