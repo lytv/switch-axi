@@ -30,6 +30,8 @@ examples:
   switch-axi agents create --type opencode --name helper --desc "Helps triage"
 note:
   agents create needs a gateway permission grant from the target agent's owner.
+  Optional defaults live in ~/.config/switch-axi/agent-create-defaults.json.
+  After create, drag the working directory onto the Switch Console sidebar.
 `;
 
 type MainOptions = {

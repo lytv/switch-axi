@@ -41,7 +41,28 @@ switch-axi read <room_id> --limit 20
 switch-axi send <room_id> "status?" --to pm
 switch-axi attach <room_id> ./plan.md --thread <event_id>
 switch-axi fetch <room_id> mxc://server/media-id ./plan.md
+switch-axi agents create --type opencode --name helper --desc "Helps triage"
 ```
+
+## Create an agent
+
+`switch-axi agents create` registers a new Switch agent and writes its credential file as `<working-dir>/.switch/agents/<name>.json` in the Console nested-env shape.
+
+Optional defaults live in `~/.config/switch-axi/agent-create-defaults.json`. All keys are optional. CLI flags override config values.
+
+```json
+{
+  "agent_type": "opencode",
+  "auto_session": true,
+  "base_working_dir": "/Users/lytv/tools/myjira/",
+  "git_repo_url": "https://github.com/lytvrks/firstmate",
+  "owner_only": false
+}
+```
+
+When `base_working_dir` and `git_repo_url` are set, the command clones the repo into `<base_working_dir>/<name>` before it calls the API. Use `--repo-dir` to override that path. Use `--no-clone` to skip the clone. The command fails if the base directory does not exist, if the target directory already exists, or if `git` is missing.
+
+After create, open Switch Console and drag the working directory onto the sidebar. That is the one remaining manual step. Local agents also need a one-time auto-approve toggle in Console settings if you want unattended operation.
 
 Every room command takes an explicit `room_id`. `send` and `attach` are non-idempotent. Do not retry an ambiguous timeout.
 Use `--` before a send body that starts with a dash.
