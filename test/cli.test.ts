@@ -20,6 +20,78 @@ async function workspace(): Promise<string> {
   return cwd;
 }
 
+describe("rooms create entry", () => {
+  it("passes command-position --agent to create_room, not the credential store", async () => {
+    const cwd = await workspace();
+    const calls: { url: string; auth: string; body: unknown }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      calls.push({
+        url: String(input),
+        auth: String(
+          (init?.headers as Record<string, string>)?.Authorization ?? "",
+        ),
+        body: JSON.parse(String(init?.body)),
+      });
+      return new Response(
+        JSON.stringify({
+          result: {
+            id: "room-1",
+            name: "n",
+            transport_room_id: "!abc:switch",
+            failed_attachments: [],
+          },
+        }),
+      );
+    };
+    let output = "";
+    try {
+      await main({
+        argv: [
+          "--cwd",
+          cwd,
+          "--agent",
+          "qa",
+          "rooms",
+          "create",
+          "--name",
+          "n",
+          "--desc",
+          "d",
+          "--agent",
+          "member-1",
+          "--json",
+        ],
+        stdout: {
+          write: (chunk: string) => {
+            output += chunk;
+          },
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(calls).toHaveLength(1);
+    // leading --agent selects the credential store entry (qa-id in the URL),
+    // command-position --agent becomes the room member list in the body.
+    expect(calls[0].url).toBe(
+      "https://switch.example/agents/qa-id/ops/create_room",
+    );
+    expect(calls[0].auth).toBe("Bearer token-qa");
+    expect(calls[0].body).toEqual({
+      name: "n",
+      description: "d",
+      agent_names: ["member-1"],
+    });
+    const data = JSON.parse(output) as { room: unknown };
+    expect(data.room).toEqual({
+      id: "room-1",
+      name: "n",
+      transport_room_id: "!abc:switch",
+    });
+  });
+});
+
 describe("send options", () => {
   it("sends dash-prefixed bodies after the option separator", async () => {
     const cwd = await workspace();
