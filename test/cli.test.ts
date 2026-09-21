@@ -15,6 +15,7 @@ describe("root help", () => {
       "Create writes <workdir>/.switch/agents/<name>.json",
     );
     expect(output).toContain("Console auto-adopts credentials");
+    expect(output).toContain("$XDG_CONFIG_HOME/switch-axi");
   });
 });
 

@@ -31,13 +31,13 @@ switch-axi --cwd <creator-workdir> --agent <creator-slug> agents create \
 
 ### One shared defaults file (all harnesses)
 
-CLI defaults load from:
+CLI defaults load from `$XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json` when `XDG_CONFIG_HOME` is set. Otherwise, they load from:
 
 ```text
 ~/.config/switch-axi/agent-create-defaults.json
 ```
 
-One file applies for Claude, OpenCode, and Codex. Flags override the file.
+Claude, OpenCode, and Codex must use the same config home. Flags override the file.
 
 Typical posture B (new folder per agent name):
 

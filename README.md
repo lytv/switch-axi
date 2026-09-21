@@ -53,7 +53,7 @@ The CLI registers the agent and writes `<working-dir>/.switch/agents/<name>.json
 
 ### Defaults (one file, every coding agent)
 
-Optional defaults live in `~/.config/switch-axi/agent-create-defaults.json`. All keys are optional. CLI flags override config values. Claude, OpenCode, and Codex creators all read this same file when they run the CLI.
+Optional defaults live in `$XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json` when `XDG_CONFIG_HOME` is set. Otherwise, they live in `~/.config/switch-axi/agent-create-defaults.json`. All keys are optional. CLI flags override config values. Claude, OpenCode, and Codex creators must use the same config home when they run the CLI.
 
 ```json
 {
