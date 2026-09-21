@@ -1,9 +1,26 @@
-import { resolve } from "node:path";
-import { chmod, rename, unlink, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import {
+  chmod,
+  mkdir,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
+import { promisify } from "node:util";
+import {
+  AGENT_TYPES,
+  loadAgentCreateDefaults,
+  type AgentType,
+} from "./agent-defaults.js";
 import { parseArgs, requireCount, unliteral } from "./args.js";
 import { SwitchClient } from "./client.js";
 import { resolveCredentials, type ResolveOptions } from "./credentials.js";
 import { render, truncate } from "./render.js";
+
+const execFile = promisify(execFileCallback);
 
 export type CommandContext = ResolveOptions & { json: boolean };
 type Client = Pick<SwitchClient, "call" | "operations" | "attach" | "fetch">;
@@ -90,14 +107,22 @@ export const HELP = {
   agents: help(
     "agents",
     "switch-axi agents list|show|create",
-    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings.",
+    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Optional defaults live in ~/.config/switch-axi/agent-create-defaults.json. After create, drag the working directory onto the Switch Console sidebar. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
     {
-      "--type": "agent type: claude-code|codex|opencode (create)",
+      "--type":
+        "agent type: claude-code|codex|opencode (create; optional if set in defaults)",
       "--name": "agent name (create)",
       "--desc": "agent description (create)",
       "--option": "extra k=v option; repeat (create)",
       "--icon-url": "icon URL (create)",
       "--display-name": "display name (create)",
+      "--auto-session": "set options.auto_session true (create)",
+      "--no-auto-session": "set options.auto_session false (create)",
+      "--repo-dir": "working directory for clone and credentials (create)",
+      "--no-clone": "skip git clone (create)",
+      "--owner-only":
+        "send owner_only true when the server supports it (create)",
+      "--anyone": "send owner_only false when the server supports it (create)",
     },
   ),
   ops: help(
@@ -425,16 +450,16 @@ export async function agentsCommand(
   );
 }
 
-const agentTypes = ["claude-code", "codex", "opencode"];
-
 const createUsage =
-  "switch-axi agents create --type <claude-code|codex|opencode> --name <name> --desc <description> [--option k=v ...] [--icon-url <url>] [--display-name <name>]";
+  "switch-axi agents create --type <claude-code|codex|opencode> --name <name> --desc <description> [--option k=v ...] [--icon-url <url>] [--display-name <name>] [--auto-session|--no-auto-session] [--repo-dir <path>] [--no-clone] [--owner-only|--anyone]";
 
 async function createAgent(
   args: string[],
   context: CommandContext,
   factory: ClientFactory,
 ): Promise<string> {
+  const env = context.env ?? process.env;
+  const defaults = loadAgentCreateDefaults(env);
   const { positionals, flags } = parseArgs(args, {
     "--type": "value",
     "--name": "value",
@@ -442,15 +467,25 @@ async function createAgent(
     "--option": "repeat",
     "--icon-url": "value",
     "--display-name": "value",
+    "--auto-session": "boolean",
+    "--no-auto-session": "boolean",
+    "--repo-dir": "value",
+    "--no-clone": "boolean",
+    "--owner-only": "boolean",
+    "--anyone": "boolean",
   });
   if (positionals.length) throw new Error(`usage: ${createUsage}`);
-  const type = flags["--type"] as string | undefined;
+  if (flags["--auto-session"] && flags["--no-auto-session"])
+    throw new Error("use only one of --auto-session and --no-auto-session");
+  if (flags["--owner-only"] && flags["--anyone"])
+    throw new Error("use only one of --owner-only and --anyone");
+  const type = (flags["--type"] as string | undefined) ?? defaults.agent_type;
   const name = flags["--name"] as string | undefined;
   const desc = flags["--desc"] as string | undefined;
   if (!type || !name || !desc) throw new Error(`usage: ${createUsage}`);
-  if (!agentTypes.includes(type))
+  if (!AGENT_TYPES.includes(type as AgentType))
     throw new Error(
-      `--type must be one of ${agentTypes.join(", ")}, got: ${type}`,
+      `--type must be one of ${AGENT_TYPES.join(", ")}, got: ${type}`,
     );
   if (
     name.includes("/") ||
@@ -459,15 +494,59 @@ async function createAgent(
     name === ".."
   )
     throw new Error(`--name must be a plain file-safe name, got: ${name}`);
-  const options: Record<string, string> = {};
+  const options: Record<string, string | boolean> = {};
   for (const item of (flags["--option"] as string[] | undefined) ?? []) {
     const separator = item.indexOf("=");
     if (separator < 1) throw new Error(`--option must be k=v, got: ${item}`);
     options[item.slice(0, separator)] = item.slice(separator + 1);
   }
+  let autoSession: boolean | undefined;
+  if (flags["--auto-session"]) autoSession = true;
+  else if (flags["--no-auto-session"]) autoSession = false;
+  else autoSession = defaults.auto_session;
+  const ownerOnlyFlag = flags["--owner-only"]
+    ? true
+    : flags["--anyone"]
+      ? false
+      : undefined;
+  const ownerOnly = ownerOnlyFlag ?? defaults.owner_only ?? false;
+  const repoDirFlag = flags["--repo-dir"] as string | undefined;
+  if (repoDirFlag !== undefined && !repoDirFlag.trim())
+    throw new Error("--repo-dir requires a path");
+  const targetDir = repoDirFlag
+    ? isAbsolute(repoDirFlag)
+      ? repoDirFlag
+      : resolve(context.cwd, repoDirFlag)
+    : defaults.base_working_dir
+      ? join(defaults.base_working_dir, name)
+      : undefined;
+  if (autoSession !== undefined) options.auto_session = autoSession;
+  if (targetDir) options.repo_dir = targetDir;
+
+  const identity = resolveCredentials(context);
+  const api = client(context, factory);
+  const shouldClone =
+    flags["--no-clone"] !== true && Boolean(defaults.git_repo_url);
+  if (shouldClone && !targetDir)
+    throw new Error(
+      "git_repo_url is set but no working directory was computed; set base_working_dir or pass --repo-dir",
+    );
+  if (!repoDirFlag && defaults.base_working_dir)
+    await requireExistingDir(defaults.base_working_dir, "base_working_dir");
+
+  let clonedDir: string | undefined;
+  if (shouldClone && targetDir && defaults.git_repo_url) {
+    if (await pathExists(targetDir))
+      throw new Error(`target directory already exists: ${targetDir}`);
+    await assertGitAvailable(env);
+    await cloneRepo(defaults.git_repo_url, targetDir, env);
+    clonedDir = targetDir;
+  }
+
+  const sendOwnerOnly = await ownerOnlySupported(api);
   let result: unknown;
   try {
-    result = await client(context, factory).call("create_agent", {
+    result = await api.call("create_agent", {
       agent_type: type,
       name,
       description: desc,
@@ -476,9 +555,10 @@ async function createAgent(
       ...(flags["--display-name"]
         ? { display_name: flags["--display-name"] }
         : {}),
+      ...(sendOwnerOnly ? { owner_only: ownerOnly } : {}),
     });
   } catch (error) {
-    throw friendlierCreateError(name, error);
+    throw friendlierCreateError(name, error, clonedDir);
   }
   if (
     !result ||
@@ -488,31 +568,182 @@ async function createAgent(
   )
     throw new Error("Switch API returned an unexpected create_agent response");
   const { id, api_key: apiKey } = result as { id: string; api_key: string };
-  const credentialFile = resolve(context.cwd, `${name}.switch-agent-key.json`);
-  await writeKeyFile(credentialFile, JSON.stringify({ id, api_key: apiKey }));
+  const workingDir = targetDir ?? context.cwd;
+  const credentialFile = await writeAgentCredential(
+    workingDir,
+    name,
+    id,
+    identity.endpoint,
+    apiKey,
+  );
+  const notes = [
+    `Credential file written to ${credentialFile}.`,
+    `Open Switch Console and drag ${workingDir} onto the sidebar.`,
+    "Local agents need a one-time auto-approve toggle in Console settings for unattended operation.",
+  ];
+  if (!sendOwnerOnly)
+    notes.push(
+      "This Switch server does not advertise owner_only on create_agent; the flag was omitted.",
+    );
   return output(
     {
       id,
       name,
       credential_file: credentialFile,
-      note: "Use this file to configure the new agent's own credential store separately; this command does not do that configuration.",
+      working_dir: workingDir,
+      note: notes.join(" "),
     },
     context,
   );
 }
 
-function friendlierCreateError(name: string, error: unknown): Error {
+function friendlierCreateError(
+  name: string,
+  error: unknown,
+  clonedDir?: string,
+): Error {
   if (!(error instanceof Error))
     return new Error(`failed to create agent ${name}`);
   if (error.message.includes("HTTP 403"))
     return new Error(
       `create_agent was denied (HTTP 403): the target agent's owner has not granted this permission in the gateway settings. Ask the owner to grant it, then retry. Detail: ${error.message}`,
     );
-  if (error.message.includes("HTTP 409"))
+  if (error.message.includes("HTTP 409")) {
+    const extra = clonedDir
+      ? ` Local folder ${clonedDir} was already created - delete it or reuse it with --repo-dir.`
+      : "";
     return new Error(
-      `agent "${name}" already exists (HTTP 409): create is create-only, pick a different --name. Detail: ${error.message}`,
+      `agent "${name}" already exists (HTTP 409): create is create-only, pick a different --name.${extra} Detail: ${error.message}`,
+    );
+  }
+  if (
+    error.message.includes("HTTP 400") &&
+    error.message.toLowerCase().includes("owner_only")
+  )
+    return new Error(
+      `create_agent rejected owner_only (HTTP 400): this Switch server does not support the owner_only argument yet. Detail: ${error.message}`,
     );
   return error;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function requireExistingDir(path: string, label: string): Promise<void> {
+  let info: Awaited<ReturnType<typeof stat>>;
+  try {
+    info = await stat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT")
+      throw new Error(`${label} does not exist: ${path}`, { cause: error });
+    throw error;
+  }
+  if (!info.isDirectory())
+    throw new Error(`${label} is not a directory: ${path}`);
+}
+
+function execErrorText(error: unknown): string {
+  if (error && typeof error === "object" && "stderr" in error) {
+    const stderr = (error as { stderr?: unknown }).stderr;
+    if (typeof stderr === "string" && stderr.trim()) return stderr.trim();
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function assertGitAvailable(env: NodeJS.ProcessEnv): Promise<void> {
+  try {
+    await execFile("git", ["--version"], { encoding: "utf8", env });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT")
+      throw new Error("git is not on PATH; install git or pass --no-clone", {
+        cause: error,
+      });
+    throw new Error(
+      `git is not on PATH; install git or pass --no-clone: ${execErrorText(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+async function cloneRepo(
+  url: string,
+  dest: string,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  try {
+    await execFile("git", ["clone", url, dest], {
+      encoding: "utf8",
+      env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+    });
+  } catch (error) {
+    const cleanup = await rm(dest, { recursive: true, force: true }).then(
+      () => true,
+      () => false,
+    );
+    const cleanupNote = cleanup
+      ? `removed ${dest}`
+      : `failed to remove ${dest}; it may still exist`;
+    throw new Error(
+      `git clone failed; ${cleanupNote}. ${execErrorText(error)}`,
+      {
+        cause: error,
+      },
+    );
+  }
+}
+
+async function ownerOnlySupported(api: Client): Promise<boolean> {
+  try {
+    const ops = await api.operations();
+    const schema = ops.create_agent?.input_schema;
+    if (!schema || typeof schema !== "object") return false;
+    const properties = (schema as { properties?: unknown }).properties;
+    return Boolean(
+      properties &&
+      typeof properties === "object" &&
+      !Array.isArray(properties) &&
+      "owner_only" in properties,
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function writeAgentCredential(
+  dir: string,
+  name: string,
+  id: string,
+  endpoint: string,
+  apiKey: string,
+): Promise<string> {
+  const agentsDir = join(dir, ".switch", "agents");
+  const credentialFile = join(agentsDir, `${name}.json`);
+  try {
+    await mkdir(agentsDir, { recursive: true });
+    await writeFile(join(agentsDir, ".gitignore"), "*\n");
+  } catch (error) {
+    throw new Error(
+      `failed to write credential file ${credentialFile}: ${(error as Error).message}`,
+      { cause: error },
+    );
+  }
+  await writeKeyFile(
+    credentialFile,
+    `${JSON.stringify({
+      env: {
+        SWITCH_AGENT_ID: id,
+        SWITCH_API_ENDPOINT: endpoint,
+        SWITCH_API_TOKEN: apiKey,
+      },
+    })}\n`,
+  );
+  return credentialFile;
 }
 
 async function writeKeyFile(path: string, payload: string): Promise<void> {
