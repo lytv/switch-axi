@@ -4,7 +4,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Add durable project-specific notes here as they are discovered through real work.
 
-`switch-axi agents create` reads optional defaults from `~/.config/switch-axi/agent-create-defaults.json`. See README.md "Create an agent".
+`switch-axi agents create` reads optional defaults from the XDG config home. See README.md "Create an agent" for the exact path and workflow.
 
 ## Maintaining this file
 
