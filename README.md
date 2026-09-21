@@ -42,7 +42,7 @@ switch-axi read <room_id> --limit 20
 switch-axi send <room_id> "status?" --to pm
 switch-axi attach <room_id> ./plan.md --thread <event_id>
 switch-axi fetch <room_id> mxc://server/media-id ./plan.md
-switch-axi agents create --name helper --desc "Helps triage"
+switch-axi agents create --type opencode --name helper --desc "Helps triage"
 ```
 
 ## Create an agent
