@@ -27,6 +27,9 @@ examples:
   switch-axi read <room_id> --limit 20
   switch-axi send <room_id> "status?" --to pm
   switch-axi attach <room_id> ./plan.md
+  switch-axi agents create --type opencode --name helper --desc "Helps triage"
+note:
+  agents create needs a gateway permission grant from the target agent's owner.
 `;
 
 type MainOptions = {
