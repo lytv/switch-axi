@@ -11,7 +11,9 @@ describe("root help", () => {
       argv: ["--help"],
       stdout: { write: (chunk: string) => (output += chunk) },
     });
-    expect(output).toContain("Create writes <workdir>/.switch/agents/<name>.json");
+    expect(output).toContain(
+      "Create writes <workdir>/.switch/agents/<name>.json",
+    );
     expect(output).toContain("Console auto-adopts credentials");
   });
 });
