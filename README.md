@@ -47,23 +47,41 @@ switch-axi agents create --type opencode --name helper --desc "Helps triage"
 
 ## Create an agent
 
-`switch-axi agents create` registers a new Switch agent and writes its credential file as `<working-dir>/.switch/agents/<name>.json` in the Console nested-env shape.
+`switch-axi agents create` is the required create path. Do not use bare MCP/ops `create_agent` alone: that returns the API key once and does not write a local credential file, so Switch Console cannot adopt the agent.
 
-Optional defaults live in `~/.config/switch-axi/agent-create-defaults.json`. All keys are optional. CLI flags override config values.
+The CLI registers the agent and writes `<working-dir>/.switch/agents/<name>.json` in the Console nested-env shape. The token is not printed after write.
+
+### Defaults (one file, every coding agent)
+
+Optional defaults live in `$XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json` when `XDG_CONFIG_HOME` is set. Otherwise, they live in `~/.config/switch-axi/agent-create-defaults.json`. All keys are optional. CLI flags override config values. Claude, OpenCode, and Codex creators must use the same config home when they run the CLI.
 
 ```json
 {
   "agent_type": "opencode",
   "auto_session": true,
-  "base_working_dir": "/Users/lytv/tools/myjira/",
+  "base_working_dir": "/Users/lytv/tools/myjira/ceo",
   "git_repo_url": "https://github.com/lytvrks/firstmate",
   "owner_only": false
 }
 ```
 
-When `base_working_dir` and `git_repo_url` are set, the command clones the repo into `<base_working_dir>/<name>` before it calls the API. Use `--repo-dir` to override that path. Use `--no-clone` to skip the clone. The command fails if the base directory does not exist, if the target directory already exists, or if `git` is missing.
+When `base_working_dir` and `git_repo_url` are set, the command clones the repo into `<base_working_dir>/<name>` (the agent name is the folder name) before it calls the API. Credentials land at `<base_working_dir>/<name>/.switch/agents/<name>.json`. Use `--repo-dir` to override that path. Use `--no-clone` to skip the clone. The command fails if the base directory does not exist, if the target directory already exists, or if `git` is missing.
 
-After create, open Switch Console and drag the working directory onto the sidebar. That is the one remaining manual step. Local agents also need a one-time auto-approve toggle in Console settings if you want unattended operation.
+With defaults set, the short form is enough:
+
+```sh
+switch-axi --cwd <creator-workdir> --agent <creator> \
+  agents create --name helper --desc "Helps triage"
+```
+
+### After create
+
+1. Confirm the printed `credential_file` exists.
+2. Invite the agent into any room that needs it (`invite_agent_to_room` by name, or the gateway room agents API).
+3. Switch Console auto-adopts credentials under an already-onboarded location. If the new folder is not onboarded yet, add that folder once in Console (drag still works as fallback). Restart Console if adopt does not show within a short wait.
+4. Local agents still need a one-time auto-approve toggle in Console when you want unattended tool use.
+
+Load the packaged `switch-axi` skill (installed under shared skills as `switch-axi`) whenever an agent is asked to create another agent.
 
 Every room command takes an explicit `room_id`. `send`, `attach`, and `rooms create` are non-idempotent. Do not retry an ambiguous timeout; check `rooms list` before retrying a create.
 Use `--` before a send body that starts with a dash.

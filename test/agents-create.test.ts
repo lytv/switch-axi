@@ -128,7 +128,7 @@ describe("agents create", () => {
     expectNoSecret(output);
     const file = join(cwd, ".switch", "agents", "helper.json");
     expect(output).toContain(file);
-    expect(output).toContain("drag");
+    expect(output).toContain("auto-adopt");
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
       env: {
         SWITCH_AGENT_ID: "agent-1",

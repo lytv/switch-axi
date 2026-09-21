@@ -107,7 +107,7 @@ export const HELP = {
   agents: help(
     "agents",
     "switch-axi agents list|show|create",
-    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Optional defaults live in ~/.config/switch-axi/agent-create-defaults.json. After create, drag the working directory onto the Switch Console sidebar. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
+    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset (one file for every coding agent). Create writes <workdir>/.switch/agents/<name>.json - do not use bare MCP create_agent alone. After create, Console auto-adopts credentials under an onboarded location; onboard a new folder once if needed. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
     {
       "--type":
         "agent type: claude-code|codex|opencode (create; optional if set in defaults)",
@@ -578,7 +578,7 @@ async function createAgent(
   );
   const notes = [
     `Credential file written to ${credentialFile}.`,
-    `Open Switch Console and drag ${workingDir} onto the sidebar.`,
+    `Working dir ${workingDir}. Console auto-adopts credentials under an onboarded location; onboard this folder once if it is new.`,
     "Local agents need a one-time auto-approve toggle in Console settings for unattended operation.",
   ];
   if (!sendOwnerOnly)

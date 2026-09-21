@@ -31,8 +31,9 @@ examples:
   switch-axi agents create --type opencode --name helper --desc "Helps triage"
 note:
   agents create needs a gateway permission grant from the target agent's owner.
-  Optional defaults live in ~/.config/switch-axi/agent-create-defaults.json.
-  After create, drag the working directory onto the Switch Console sidebar.
+  Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset.
+  Create writes <workdir>/.switch/agents/<name>.json; do not use bare MCP create_agent alone.
+  Console auto-adopts credentials under an onboarded location; onboard a new folder once if needed.
 `;
 
 type MainOptions = {
