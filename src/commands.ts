@@ -570,7 +570,7 @@ async function createAgent(
   )
     throw new Error("Switch API returned an unexpected create_agent response");
   const { id, api_key: apiKey } = result as { id: string; api_key: string };
-  const workingDir = targetDir ?? context.cwd;
+  const workingDir = resolve(targetDir ?? context.cwd);
   const credentialFile = await writeAgentCredential(
     workingDir,
     name,

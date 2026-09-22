@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { agentCreateDefaultsPath } from "../src/agent-defaults.js";
@@ -591,6 +591,20 @@ describe("agents create", () => {
     expect(
       JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
     ).toEqual({ dirs: [cwd] });
+  });
+
+  it("saves a relative working directory as an absolute path", async () => {
+    const cwd = await sandbox();
+    const relativeCwd = relative(process.cwd(), cwd);
+    const env = testEnv(relativeCwd);
+    await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(relativeCwd),
+      factoryFor(async () => ({ id: "agent-relative", api_key: secret })),
+    );
+    expect(JSON.parse(await readFile(pendingLocationsPath(env), "utf8"))).toEqual({
+      dirs: [cwd],
+    });
   });
 
   it("succeeds when Console is not running (no control-api.json reachable)", async () => {
