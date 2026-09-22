@@ -1,4 +1,11 @@
-import { chmod, mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  open,
+  readFile,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { switchAxiConfigDir } from "./agent-defaults.js";
 
