@@ -57,7 +57,9 @@ async function acquireLock(file: string): Promise<() => Promise<void>> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       if (Date.now() >= deadline)
-        throw new Error(`timed out acquiring pending-locations lock ${lock}`);
+        throw new Error(`timed out acquiring pending-locations lock ${lock}`, {
+          cause: error,
+        });
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
