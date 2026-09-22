@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { agentCreateDefaultsPath } from "../src/agent-defaults.js";
 import type { Operation } from "../src/client.js";
 import { agentsCommand, type CommandContext } from "../src/commands.js";
+import { pendingLocationsPath } from "../src/pending-locations.js";
 
 const execFile = promisify(execFileCallback);
 const secret = "api-key-must-not-leak";
@@ -564,5 +565,40 @@ describe("agents create", () => {
     } catch (error) {
       expectNoSecret(String(error));
     }
+  });
+
+  it("saves the new working directory to pending-locations.json, deduplicated", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-9", api_key: secret })),
+    );
+    expectNoSecret(output);
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({ dirs: [cwd] });
+
+    // A second agent in the same directory must not duplicate the entry.
+    await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper2", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-10", api_key: secret })),
+    );
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({ dirs: [cwd] });
+  });
+
+  it("succeeds when Console is not running (no control-api.json reachable)", async () => {
+    const cwd = await sandbox();
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-11", api_key: secret })),
+    );
+    expectNoSecret(output);
+    expect(output).toContain("saved for the next Console start");
   });
 });
