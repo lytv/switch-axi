@@ -583,7 +583,6 @@ describe("agents create", () => {
       JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
     ).toEqual({ dirs: [cwd] });
 
-    // A second agent in the same directory must not duplicate the entry.
     await agentsCommand(
       ["create", "--type", "opencode", "--name", "helper2", "--desc", "d"],
       contextFor(cwd),
@@ -628,5 +627,20 @@ describe("agents create", () => {
     );
     expect(output).toContain("invalid pending-locations file was replaced");
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ dirs: [cwd] });
+  });
+
+  it("continues when a pending-locations lock is orphaned", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const file = pendingLocationsPath(env);
+    await mkdir(join(file, ".."), { recursive: true });
+    await writeFile(`${file}.lock`, "");
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-13", api_key: secret })),
+    );
+    expect(output).toContain("Failed to save");
+    expect(output).toContain("timed out acquiring pending-locations lock");
   });
 });

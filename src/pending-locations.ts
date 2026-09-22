@@ -46,6 +46,7 @@ async function readDirs(file: string): Promise<ReadDirsResult> {
 
 async function acquireLock(file: string): Promise<() => Promise<void>> {
   const lock = `${file}.lock`;
+  const deadline = Date.now() + 1_000;
   for (;;) {
     try {
       const handle = await open(lock, "wx");
@@ -55,6 +56,8 @@ async function acquireLock(file: string): Promise<() => Promise<void>> {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (Date.now() >= deadline)
+        throw new Error(`timed out acquiring pending-locations lock ${lock}`);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
