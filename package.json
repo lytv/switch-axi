@@ -22,6 +22,7 @@
   "files": [
     "dist",
     "skills/switch-axi",
+    "skills/switch-room-setup",
     "LICENSE",
     "README.md"
   ],
@@ -38,7 +39,8 @@
     "lint": "eslint bin src test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "postinstall": "node dist/bin/postinstall.js || true"
   },
   "dependencies": {
     "@toon-format/toon": "2.1.0",

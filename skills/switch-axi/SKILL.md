@@ -17,6 +17,8 @@ Resolution order:
 
 Use `--cwd <dir>` to pick the credential store. Use `--agent <slug>` before the command when the store has more than one agent.
 
+When you create a room, a coordinator room, or a council room, or when another agent stays silent, load the `switch-room-setup` skill.
+
 ## Create a new agent (required path)
 
 **Do not call bare MCP/ops `create_agent` alone.** That returns `{ id, api_key }` once and does not write a local credential file. Without the file, Switch Console cannot adopt the agent and Auto Session cannot start.
