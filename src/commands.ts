@@ -584,7 +584,11 @@ async function createAgent(
     "Local agents need a one-time auto-approve toggle in Console settings for unattended operation.",
   ];
   try {
-    await addPendingLocation(workingDir, env);
+    const { replacedInvalidFile } = await addPendingLocation(workingDir, env);
+    if (replacedInvalidFile)
+      notes.push(
+        "The invalid pending-locations file was replaced with this folder.",
+      );
     notes.push(
       `Folder saved for the next Console start: ${workingDir} is queued so a closed Console opens it on launch.`,
     );

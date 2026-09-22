@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import { agentCreateDefaultsPath } from "../src/agent-defaults.js";
 import type { Operation } from "../src/client.js";
 import { agentsCommand, type CommandContext } from "../src/commands.js";
-import { pendingLocationsPath } from "../src/pending-locations.js";
+import {
+  addPendingLocation,
+  pendingLocationsPath,
+} from "../src/pending-locations.js";
 
 const execFile = promisify(execFileCallback);
 const secret = "api-key-must-not-leak";
@@ -600,5 +603,30 @@ describe("agents create", () => {
     );
     expectNoSecret(output);
     expect(output).toContain("saved for the next Console start");
+  });
+
+  it("keeps concurrent pending locations", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const dirs = [join(cwd, "one"), join(cwd, "two")];
+    await Promise.all(dirs.map((dir) => addPendingLocation(dir, env)));
+    expect(JSON.parse(await readFile(pendingLocationsPath(env), "utf8"))).toEqual({
+      dirs,
+    });
+  });
+
+  it("replaces an invalid pending-locations file and reports it", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const file = pendingLocationsPath(env);
+    await mkdir(join(file, ".."), { recursive: true });
+    await writeFile(file, "invalid JSON");
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-12", api_key: secret })),
+    );
+    expect(output).toContain("invalid pending-locations file was replaced");
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ dirs: [cwd] });
   });
 });
