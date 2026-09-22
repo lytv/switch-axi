@@ -78,7 +78,7 @@ switch-axi --cwd <creator-workdir> --agent <creator> \
 
 1. Confirm the printed `credential_file` exists.
 2. Invite the agent into any room that needs it (`invite_agent_to_room` by name, or the gateway room agents API).
-3. Switch Console auto-adopts credentials under an already-onboarded location. The CLI also saves the working directory to `pending-locations.json` (next to `agent-create-defaults.json`) and, if a running Console exposes its local control API, asks it to open the folder immediately. If the new folder is not onboarded yet, add that folder once in Console (drag still works as fallback).
+3. Switch Console auto-adopts credentials under an already-onboarded location. The CLI saves the working directory to `$XDG_CONFIG_HOME/switch-axi/pending-locations.json`, or `~/.config/switch-axi/pending-locations.json` when unset. Console reads this file at start. If a Console is running and exposes its local control API, the CLI also asks it to open the folder immediately. If the new folder is not onboarded yet, Console opens it from the queued path.
 4. Local agents still need a one-time auto-approve toggle in Console when you want unattended tool use.
 
 Load the packaged `switch-axi` skill (installed under shared skills as `switch-axi`) whenever an agent is asked to create another agent.

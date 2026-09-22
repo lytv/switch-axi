@@ -33,7 +33,7 @@ note:
   agents create needs a gateway permission grant from the target agent's owner.
   Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset.
   Create writes <workdir>/.switch/agents/<name>.json; do not use bare MCP create_agent alone.
-  Console auto-adopts credentials under an onboarded location; onboard a new folder once if needed.
+  Create queues the working directory for Console startup and asks a running Console to open it immediately.
 `;
 
 type MainOptions = {
