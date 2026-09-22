@@ -1,12 +1,16 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { agentCreateDefaultsPath } from "../src/agent-defaults.js";
 import type { Operation } from "../src/client.js";
 import { agentsCommand, type CommandContext } from "../src/commands.js";
+import {
+  addPendingLocation,
+  pendingLocationsPath,
+} from "../src/pending-locations.js";
 
 const execFile = promisify(execFileCallback);
 const secret = "api-key-must-not-leak";
@@ -564,5 +568,97 @@ describe("agents create", () => {
     } catch (error) {
       expectNoSecret(String(error));
     }
+  });
+
+  it("saves the new working directory to pending-locations.json, deduplicated", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-9", api_key: secret })),
+    );
+    expectNoSecret(output);
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({ dirs: [cwd] });
+
+    await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper2", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-10", api_key: secret })),
+    );
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({ dirs: [cwd] });
+  });
+
+  it("saves a relative working directory as an absolute path", async () => {
+    const cwd = await sandbox();
+    const relativeCwd = relative(process.cwd(), cwd);
+    const env = testEnv(relativeCwd);
+    await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(relativeCwd),
+      factoryFor(async () => ({ id: "agent-relative", api_key: secret })),
+    );
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({
+      dirs: [cwd],
+    });
+  });
+
+  it("succeeds when Console is not running (no control-api.json reachable)", async () => {
+    const cwd = await sandbox();
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-11", api_key: secret })),
+    );
+    expectNoSecret(output);
+    expect(output).toContain("saved for the next Console start");
+  });
+
+  it("keeps concurrent pending locations", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const dirs = [join(cwd, "one"), join(cwd, "two")];
+    await Promise.all(dirs.map((dir) => addPendingLocation(dir, env)));
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({
+      dirs: expect.arrayContaining(dirs),
+    });
+  });
+
+  it("replaces an invalid pending-locations file and reports it", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const file = pendingLocationsPath(env);
+    await mkdir(join(file, ".."), { recursive: true });
+    await writeFile(file, "invalid JSON");
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-12", api_key: secret })),
+    );
+    expect(output).toContain("invalid pending-locations file was replaced");
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ dirs: [cwd] });
+  });
+
+  it("continues when a pending-locations lock is orphaned", async () => {
+    const cwd = await sandbox();
+    const env = testEnv(cwd);
+    const file = pendingLocationsPath(env);
+    await mkdir(join(file, ".."), { recursive: true });
+    await writeFile(`${file}.lock`, "");
+    const output = await agentsCommand(
+      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
+      contextFor(cwd),
+      factoryFor(async () => ({ id: "agent-13", api_key: secret })),
+    );
+    expect(output).toContain("Failed to save");
+    expect(output).toContain("timed out acquiring pending-locations lock");
   });
 });

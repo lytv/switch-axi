@@ -21,7 +21,7 @@ const knownKeys = new Set([
   "owner_only",
 ]);
 
-export function agentCreateDefaultsPath(
+export function switchAxiConfigDir(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const xdg =
@@ -30,11 +30,13 @@ export function agentCreateDefaultsPath(
     typeof env.HOME === "string" && env.HOME.trim()
       ? env.HOME.trim()
       : homedir();
-  return join(
-    xdg || join(home, ".config"),
-    "switch-axi",
-    "agent-create-defaults.json",
-  );
+  return join(xdg || join(home, ".config"), "switch-axi");
+}
+
+export function agentCreateDefaultsPath(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return join(switchAxiConfigDir(env), "agent-create-defaults.json");
 }
 
 export function loadAgentCreateDefaults(

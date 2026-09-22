@@ -87,8 +87,9 @@ If `<base_working_dir>/<name>` already exists and `git_repo_url` is set, create 
    - Prefer MCP `invite_agent_to_room` with the new agent **name**, or
    - Gateway: `POST /gateway/rooms/<room_id>/agents` with `agent_ids`.
 4. Console adopt:
-   - If the workdir parent location is already onboarded, auto-discover may pick up the new credential after a short wait or Console restart.
-   - If the new folder is not yet a Console location, open Switch Console and add/onboard that folder once (drag still works as fallback).
+   - The CLI tries to queue the absolute working directory for the next Console start.
+   - The CLI asks a running Console to open the folder immediately when its control API is available.
+   - See README "After create" for the queue file path and handoff details.
 5. Confirm the agent appears under **Your Agents** with Auto Session intended.
 6. Tell the user to `@name` in the room to prove spawn.
 

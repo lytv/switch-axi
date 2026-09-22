@@ -17,7 +17,9 @@ import {
 } from "./agent-defaults.js";
 import { parseArgs, requireCount, unliteral } from "./args.js";
 import { SwitchClient } from "./client.js";
+import { notifyConsoleOpenFolder } from "./console-notify.js";
 import { resolveCredentials, type ResolveOptions } from "./credentials.js";
+import { addPendingLocation } from "./pending-locations.js";
 import { render, truncate } from "./render.js";
 
 const execFile = promisify(execFileCallback);
@@ -107,7 +109,7 @@ export const HELP = {
   agents: help(
     "agents",
     "switch-axi agents list|show|create",
-    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset (one file for every coding agent). Create writes <workdir>/.switch/agents/<name>.json - do not use bare MCP create_agent alone. After create, Console auto-adopts credentials under an onboarded location; onboard a new folder once if needed. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
+    "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset (one file for every coding agent). Create writes <workdir>/.switch/agents/<name>.json - do not use bare MCP create_agent alone. After create, the working directory is saved to $XDG_CONFIG_HOME/switch-axi/pending-locations.json for the next Console start, and a running Console is told to open it immediately when its control file is reachable; a closed or unreachable Console is not a create failure. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
     {
       "--type":
         "agent type: claude-code|codex|opencode (create; optional if set in defaults)",
@@ -568,7 +570,7 @@ async function createAgent(
   )
     throw new Error("Switch API returned an unexpected create_agent response");
   const { id, api_key: apiKey } = result as { id: string; api_key: string };
-  const workingDir = targetDir ?? context.cwd;
+  const workingDir = resolve(targetDir ?? context.cwd);
   const credentialFile = await writeAgentCredential(
     workingDir,
     name,
@@ -581,6 +583,21 @@ async function createAgent(
     `Working dir ${workingDir}. Console auto-adopts credentials under an onboarded location; onboard this folder once if it is new.`,
     "Local agents need a one-time auto-approve toggle in Console settings for unattended operation.",
   ];
+  try {
+    const { replacedInvalidFile } = await addPendingLocation(workingDir, env);
+    if (replacedInvalidFile)
+      notes.push(
+        "The invalid pending-locations file was replaced with this folder.",
+      );
+    notes.push(
+      `Folder saved for the next Console start: ${workingDir} is queued so a closed Console opens it on launch.`,
+    );
+  } catch (error) {
+    notes.push(
+      `Failed to save ${workingDir} for the next Console start: ${(error as Error).message}`,
+    );
+  }
+  await notifyConsoleOpenFolder(workingDir, env);
   if (!sendOwnerOnly)
     notes.push(
       "This Switch server does not advertise owner_only on create_agent; the flag was omitted.",

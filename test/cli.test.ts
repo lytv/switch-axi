@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { main } from "../src/cli.js";
 
 describe("root help", () => {
-  it("describes the credential write and Console adoption", async () => {
+  it("describes the credential write and Console folder handoff", async () => {
     let output = "";
     await main({
       argv: ["--help"],
@@ -14,7 +14,9 @@ describe("root help", () => {
     expect(output).toContain(
       "Create writes <workdir>/.switch/agents/<name>.json",
     );
-    expect(output).toContain("Console auto-adopts credentials");
+    expect(output).toContain(
+      "Create queues the working directory for Console startup",
+    );
     expect(output).toContain("$XDG_CONFIG_HOME/switch-axi");
   });
 });
