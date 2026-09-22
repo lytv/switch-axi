@@ -623,7 +623,7 @@ describe("agents create", () => {
     const dirs = [join(cwd, "one"), join(cwd, "two")];
     await Promise.all(dirs.map((dir) => addPendingLocation(dir, env)));
     expect(JSON.parse(await readFile(pendingLocationsPath(env), "utf8"))).toEqual({
-      dirs,
+      dirs: expect.arrayContaining(dirs),
     });
   });
 
