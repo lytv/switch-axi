@@ -602,7 +602,9 @@ describe("agents create", () => {
       contextFor(relativeCwd),
       factoryFor(async () => ({ id: "agent-relative", api_key: secret })),
     );
-    expect(JSON.parse(await readFile(pendingLocationsPath(env), "utf8"))).toEqual({
+    expect(
+      JSON.parse(await readFile(pendingLocationsPath(env), "utf8")),
+    ).toEqual({
       dirs: [cwd],
     });
   });
