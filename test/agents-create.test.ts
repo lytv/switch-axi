@@ -604,19 +604,6 @@ describe("agents create", () => {
     expect(output).toContain("saved for the next Console start");
   });
 
-  it("writes pending locations for the owner only", async () => {
-    const cwd = await sandbox();
-    const env = testEnv(cwd);
-    await agentsCommand(
-      ["create", "--type", "opencode", "--name", "helper", "--desc", "d"],
-      contextFor(cwd),
-      factoryFor(async () => ({ id: "agent-14", api_key: secret })),
-    );
-    const file = pendingLocationsPath(env);
-    expect((await stat(join(file, ".."))).mode & 0o777).toBe(0o700);
-    expect((await stat(file)).mode & 0o777).toBe(0o600);
-  });
-
   it("keeps concurrent pending locations", async () => {
     const cwd = await sandbox();
     const env = testEnv(cwd);

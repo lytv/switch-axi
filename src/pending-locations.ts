@@ -1,11 +1,4 @@
-import {
-  chmod,
-  mkdir,
-  open,
-  readFile,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { switchAxiConfigDir } from "./agent-defaults.js";
 
@@ -78,13 +71,12 @@ export async function addPendingLocation(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<PendingLocationResult> {
   const file = pendingLocationsPath(env);
-  await mkdir(join(file, ".."), { recursive: true, mode: 0o700 });
+  await mkdir(join(file, ".."), { recursive: true });
   const release = await acquireLock(file);
   try {
     const { dirs, replaced } = await readDirs(file);
     if (!dirs.includes(dir)) dirs.push(dir);
-    await writeFile(file, `${JSON.stringify({ dirs })}\n`, { mode: 0o600 });
-    await chmod(file, 0o600);
+    await writeFile(file, `${JSON.stringify({ dirs })}\n`);
     return { file, replacedInvalidFile: replaced };
   } finally {
     await release();
