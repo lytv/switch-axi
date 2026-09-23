@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { installSkills } from "../src/install-skills.js";
+import { installSkills, PACKAGED_SKILLS } from "../src/install-skills.js";
 
 async function sandbox(): Promise<string> {
   return mkdtemp(join(tmpdir(), "switch-axi-install-skills-"));
@@ -19,6 +19,9 @@ async function packagedSkills(root: string): Promise<string> {
 }
 
 describe("installSkills", () => {
+  it("ships the switch-jira skill beside switch-axi", () => {
+    expect(PACKAGED_SKILLS).toContain("switch-jira");
+  });
   it("skips a missing root without throwing", async () => {
     const root = await sandbox();
     const packageRoot = await packagedSkills(root);
