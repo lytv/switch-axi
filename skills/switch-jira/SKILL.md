@@ -34,7 +34,7 @@ switch-axi jira triggers add --name <n> --instance <i> \
   [--project <key>] [--issue-type <t>] [--target-status <s>] \
   [--jql <filter>] [--thread-by new|issue_key] [--disabled]
 switch-axi jira triggers update <id> [same field flags, plus --enabled]
-switch-axi jira triggers delete <id>   # prompts; --yes skips the prompt
+switch-axi jira triggers delete <id>   # prompts for confirmation
 ```
 
 `triggers add` defaults: `target_kind=room` is NOT assumed - `--target` is required; `thread_by=new`, enabled unless `--disabled`. `dry-run` never posts (`would_post` is always false); the default sample event is PROJ-123.

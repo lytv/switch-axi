@@ -203,6 +203,14 @@ describe("jira triggers add/update", () => {
         yes,
       ),
     ).rejects.toThrow("--target group requires --group");
+    await expect(
+      jiraCommand(
+        ["triggers", ...addFlags, "--enabled"],
+        context,
+        noop,
+        yes,
+      ),
+    ).rejects.toThrow("unknown flag: --enabled");
   });
 
   it("sends partial update fields with the trigger id", async () => {
@@ -262,7 +270,7 @@ describe("jira triggers delete", () => {
     expect(seen).toEqual({ trigger_id: "rule-1" });
   });
 
-  it("cancels on no and skips the prompt with --yes", async () => {
+  it("cancels on no and rejects a confirmation bypass", async () => {
     const noop = stubClient(async () => ({}));
     await expect(
       jiraCommand(
@@ -272,17 +280,14 @@ describe("jira triggers delete", () => {
         async () => "no",
       ),
     ).rejects.toThrow("delete cancelled");
-    let prompted = false;
-    await jiraCommand(
-      ["triggers", "delete", "rule-1", "--yes"],
-      context,
-      noop,
-      async () => {
-        prompted = true;
-        return "yes";
-      },
-    );
-    expect(prompted).toBe(false);
+    await expect(
+      jiraCommand(
+        ["triggers", "delete", "rule-1", "--yes"],
+        context,
+        noop,
+        yes,
+      ),
+    ).rejects.toThrow("unknown flag: --yes");
   });
 });
 

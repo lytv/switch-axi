@@ -159,7 +159,6 @@ export const HELP = {
       "--limit": "maximum deliveries (deliveries list)",
       "--overrides": "dry-run sample-event overrides as JSON object",
       "--payload": "dry-run raw webhook payload from a JSON file",
-      "--yes": "skip the delete confirmation prompt",
     },
   ),
 };
@@ -826,7 +825,7 @@ async function writeKeyFile(path: string, payload: string): Promise<void> {
 
 const JIRA_INSTANCES_USAGE = "switch-axi jira instances list";
 const JIRA_TRIGGERS_USAGE =
-  "switch-axi jira triggers list [--instance <name>]|show <id>|add --name <n> --instance <i> --fire-on <created|updated|transition> --template <text> --target <room|group> --room|--group <id> --agent <name> [--project <key>] [--issue-type <t>] [--target-status <s>] [--jql <filter>] [--thread-by <new|issue_key>] [--disabled]|update <id> [fields ...]|delete <id> [--yes]|dry-run <id> [--overrides '<object>'] [--payload <file>]";
+  "switch-axi jira triggers list [--instance <name>]|show <id>|add --name <n> --instance <i> --fire-on <created|updated|transition> --template <text> --target <room|group> --room|--group <id> --agent <name> [--project <key>] [--issue-type <t>] [--target-status <s>] [--jql <filter>] [--thread-by <new|issue_key>] [--disabled]|update <id> [fields ...]|delete <id>|dry-run <id> [--overrides '<object>'] [--payload <file>]";
 const JIRA_DELIVERIES_USAGE =
   "switch-axi jira deliveries list [--instance <name>] [--rule <id>] [--limit <n>]";
 const JIRA_AGENT_OPTIONS_USAGE =
@@ -1027,7 +1026,6 @@ const TRIGGER_FIELD_FLAGS = {
   "--template": "value",
   "--thread-by": "value",
   "--disabled": "boolean",
-  "--enabled": "boolean",
 } as const;
 
 function triggerFieldArgs(flags: Record<string, string | boolean | string[]>): {
@@ -1127,7 +1125,10 @@ async function jiraTriggerUpdate(
   context: CommandContext,
   factory: ClientFactory,
 ): Promise<string> {
-  const { positionals, flags } = parseArgs(args, { ...TRIGGER_FIELD_FLAGS });
+  const { positionals, flags } = parseArgs(args, {
+    ...TRIGGER_FIELD_FLAGS,
+    "--enabled": "boolean",
+  });
   requireCount(
     positionals,
     1,
@@ -1159,15 +1160,13 @@ async function jiraTriggerDelete(
   factory: ClientFactory,
   confirm: Confirm,
 ): Promise<string> {
-  const { positionals, flags } = parseArgs(args, { "--yes": "boolean" });
-  requireCount(positionals, 1, "switch-axi jira triggers delete <id> [--yes]");
-  if (!flags["--yes"]) {
-    const answer = await confirm(
-      `Delete Jira trigger ${positionals[0]}? Type yes to confirm: `,
-    );
-    if (!["yes", "y"].includes(answer.trim().toLowerCase()))
-      throw new Error("delete cancelled");
-  }
+  const { positionals } = parseArgs(args, {});
+  requireCount(positionals, 1, "switch-axi jira triggers delete <id>");
+  const answer = await confirm(
+    `Delete Jira trigger ${positionals[0]}? Type yes to confirm: `,
+  );
+  if (!["yes", "y"].includes(answer.trim().toLowerCase()))
+    throw new Error("delete cancelled");
   return output(
     {
       delete: await client(context, factory).call("delete_jira_trigger", {
