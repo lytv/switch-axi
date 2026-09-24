@@ -25,12 +25,27 @@ describe("jira instances", () => {
       stubClient(async (name, args) => {
         expect(name).toBe("list_jira_instances");
         seen = args;
-        return { instances: [], jira_agent_name: "jira" };
+        return {
+          instances: [
+            {
+              name: "acme",
+              webhook_secret: "raw-webhook-secret",
+              webhook_secret_masked: "****1234",
+            },
+          ],
+          jira_agent_name: "jira",
+        };
       }),
       yes,
     );
     expect(seen).toEqual({});
-    expect(JSON.parse(output).jira.jira_agent_name).toBe("jira");
+    const jira = JSON.parse(output).jira;
+    expect(jira.jira_agent_name).toBe("jira");
+    expect(jira.instances[0]).toEqual({
+      name: "acme",
+      webhook_secret_masked: "****1234",
+    });
+    expect(output).not.toContain("raw-webhook-secret");
   });
 
   it("rejects reveal, rotate, and add with an admin-UI pointer", async () => {

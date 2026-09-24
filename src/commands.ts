@@ -862,6 +862,16 @@ function parseJsonObject(
   return value as Record<string, unknown>;
 }
 
+function maskJiraSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(maskJiraSecrets);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !/secret/i.test(key) || /masked/i.test(key))
+      .map(([key, entry]) => [key, maskJiraSecrets(entry)]),
+  );
+}
+
 function checkEnum(
   value: string | undefined,
   allowed: string[],
@@ -915,7 +925,9 @@ async function jiraInstances(
   if (positionals.length === 1 && positionals[0] === "list") {
     return output(
       {
-        jira: await client(context, factory).call("list_jira_instances", {}),
+        jira: maskJiraSecrets(
+          await client(context, factory).call("list_jira_instances", {}),
+        ),
       },
       context,
     );
