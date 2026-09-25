@@ -27,9 +27,9 @@ describe("installSkills", () => {
 
     await installSkills(packageRoot, [skillsRoot]);
 
-    expect((await stat(join(skillsRoot, "switch-jira", "SKILL.md"))).isFile()).toBe(
-      true,
-    );
+    expect(
+      (await stat(join(skillsRoot, "switch-jira", "SKILL.md"))).isFile(),
+    ).toBe(true);
   });
   it("skips a missing root without throwing", async () => {
     const root = await sandbox();

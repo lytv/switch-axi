@@ -219,12 +219,7 @@ describe("jira triggers add/update", () => {
       ),
     ).rejects.toThrow("--target group requires --group");
     await expect(
-      jiraCommand(
-        ["triggers", ...addFlags, "--enabled"],
-        context,
-        noop,
-        yes,
-      ),
+      jiraCommand(["triggers", ...addFlags, "--enabled"], context, noop, yes),
     ).rejects.toThrow("unknown flag: --enabled");
   });
 
