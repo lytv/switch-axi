@@ -2,7 +2,11 @@ import { cp, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const PACKAGED_SKILLS = ["switch-axi", "switch-room-setup"];
+export const PACKAGED_SKILLS = [
+  "switch-axi",
+  "switch-room-setup",
+  "switch-jira",
+];
 
 export function skillRoots(home: string = homedir()): string[] {
   return [

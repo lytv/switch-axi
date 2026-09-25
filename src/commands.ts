@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import {
   chmod,
   mkdir,
+  readFile,
   rename,
   rm,
   stat,
@@ -9,6 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
+import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import {
   AGENT_TYPES,
@@ -132,6 +134,32 @@ export const HELP = {
     "switch-axi ops list|schema|call",
     "Discover or call the safe generic operation allowlist.",
     { "--args-json": "JSON object for ops call" },
+  ),
+  jira: help(
+    "jira",
+    "switch-axi jira instances list|triggers ...|deliveries list|tokens|agent-options ...",
+    "Manage Switch Jira trigger rules over the agent bearer-token channel. A Jira instance is server configuration only (JIRA_WEBHOOK_SECRETS + restart): there is no instances add/create command, and none will be added. Webhook secret reveal and rotation stay admin-UI-only (admin login required); this CLI never prints or mints a real secret.",
+    {
+      "--instance": "Jira instance name (list filter; required on add)",
+      "--name": "rule display name (add; update)",
+      "--project": "Jira project key filter, blank = any (add; update)",
+      "--issue-type": "issue type filter, blank = any (add; update)",
+      "--fire-on": "created|updated|transition (add; update)",
+      "--target-status": "status moved to / current status (add; update)",
+      "--jql": "mini-JQL filter, blank = none (add; update)",
+      "--target": "room|group (add; update)",
+      "--room": "target room id (add; update; agent-options)",
+      "--group": "target group id (add; update; agent-options)",
+      "--agent": "agent name to mention; must be a room member (add; update)",
+      "--template": "message template with {{tokens}} (add; update)",
+      "--thread-by": "new|issue_key (add; update)",
+      "--disabled": "create/update the rule disabled (add; update)",
+      "--enabled": "re-enable the rule (update)",
+      "--rule": "delivery filter: rule id (deliveries list)",
+      "--limit": "maximum deliveries (deliveries list)",
+      "--overrides": "dry-run sample-event overrides as JSON object",
+      "--payload": "dry-run raw webhook payload from a JSON file",
+    },
   ),
 };
 
@@ -793,6 +821,424 @@ async function writeKeyFile(path: string, payload: string): Promise<void> {
       { cause: error },
     );
   }
+}
+
+const JIRA_INSTANCES_USAGE = "switch-axi jira instances list";
+const JIRA_TRIGGERS_USAGE =
+  "switch-axi jira triggers list [--instance <name>]|show <id>|add --name <n> --instance <i> --fire-on <created|updated|transition> --template <text> --target <room|group> --room|--group <id> --agent <name> [--project <key>] [--issue-type <t>] [--target-status <s>] [--jql <filter>] [--thread-by <new|issue_key>] [--disabled]|update <id> [fields ...]|delete <id>|dry-run <id> [--overrides '<object>'] [--payload <file>]";
+const JIRA_DELIVERIES_USAGE =
+  "switch-axi jira deliveries list [--instance <name>] [--rule <id>] [--limit <n>]";
+const JIRA_AGENT_OPTIONS_USAGE =
+  "switch-axi jira agent-options --room <id> | --group <id>";
+
+const FIRE_ON = ["created", "updated", "transition"];
+const TARGET_KINDS = ["room", "group"];
+const THREAD_BY = ["new", "issue_key"];
+
+type Confirm = (prompt: string) => Promise<string>;
+
+function stdinConfirm(prompt: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise<string>((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+}
+
+function parseJsonObject(
+  source: string,
+  label: string,
+): Record<string, unknown> {
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    throw new Error(`${label} must be valid JSON`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${label} must be one JSON object`);
+  return value as Record<string, unknown>;
+}
+
+function maskJiraSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(maskJiraSecrets);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !/secret/i.test(key) || /masked/i.test(key))
+      .map(([key, entry]) => [key, maskJiraSecrets(entry)]),
+  );
+}
+
+function checkEnum(
+  value: string | undefined,
+  allowed: string[],
+  flag: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (!allowed.includes(value))
+    throw new Error(
+      `${flag} must be one of ${allowed.join("|")}, got: ${value}`,
+    );
+  return value;
+}
+
+export async function jiraCommand(
+  args: string[],
+  context: CommandContext,
+  factory = makeClient,
+  confirm: Confirm = stdinConfirm,
+): Promise<string> {
+  if (args.includes("--help")) return output(HELP.jira, context);
+  const [group, ...rest] = args;
+  if (group === "instances") return jiraInstances(rest, context, factory);
+  if (group === "triggers")
+    return jiraTriggers(rest, context, factory, confirm);
+  if (group === "deliveries") return jiraDeliveries(rest, context, factory);
+  if (group === "tokens") {
+    requireCount(rest, 0, "switch-axi jira tokens");
+    return output(
+      {
+        tokens: await client(context, factory).call(
+          "list_jira_message_tokens",
+          {},
+        ),
+      },
+      context,
+    );
+  }
+  if (group === "agent-options")
+    return jiraAgentOptions(rest, context, factory);
+  throw new Error(
+    "usage: switch-axi jira instances|triggers|deliveries|tokens|agent-options ...",
+  );
+}
+
+async function jiraInstances(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals } = parseArgs(args, {});
+  if (positionals.length === 1 && positionals[0] === "list") {
+    return output(
+      {
+        jira: maskJiraSecrets(
+          await client(context, factory).call("list_jira_instances", {}),
+        ),
+      },
+      context,
+    );
+  }
+  throw new Error(
+    `usage: ${JIRA_INSTANCES_USAGE} (a Jira instance is server configuration only - there is no instances add; secret reveal and rotation stay admin-UI-only)`,
+  );
+}
+
+async function jiraTriggers(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+  confirm: Confirm,
+): Promise<string> {
+  const [action, ...rest] = args;
+  const api = client(context, factory);
+  if (action === "list") {
+    const { positionals, flags } = parseArgs(rest, { "--instance": "value" });
+    requireCount(
+      positionals,
+      0,
+      "switch-axi jira triggers list [--instance <name>]",
+    );
+    const instance = flags["--instance"] as string | undefined;
+    return output(
+      {
+        triggers: await api.call("list_jira_triggers", {
+          ...(instance !== undefined ? { instance } : {}),
+        }),
+      },
+      context,
+    );
+  }
+  if (action === "show") {
+    requireCount(rest, 1, "switch-axi jira triggers show <id>");
+    return output(
+      {
+        trigger: await api.call("get_jira_trigger", { trigger_id: rest[0] }),
+      },
+      context,
+    );
+  }
+  if (action === "dry-run") return jiraDryRun(rest, context, factory);
+  if (action === "add") return jiraTriggerAdd(rest, context, factory);
+  if (action === "update") return jiraTriggerUpdate(rest, context, factory);
+  if (action === "delete")
+    return jiraTriggerDelete(rest, context, factory, confirm);
+  throw new Error(`usage: ${JIRA_TRIGGERS_USAGE}`);
+}
+
+async function jiraDryRun(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    "--overrides": "value",
+    "--payload": "value",
+  });
+  requireCount(
+    positionals,
+    1,
+    "switch-axi jira triggers dry-run <id> [--overrides '<object>'] [--payload <file>]",
+  );
+  const overrides =
+    flags["--overrides"] !== undefined
+      ? parseJsonObject(flags["--overrides"] as string, "--overrides")
+      : undefined;
+  let payload: Record<string, unknown> | undefined;
+  const payloadFile = flags["--payload"] as string | undefined;
+  if (payloadFile !== undefined) {
+    let text: string;
+    try {
+      text = await readFile(resolve(context.cwd, payloadFile), "utf8");
+    } catch (error) {
+      throw new Error(
+        `cannot read --payload file ${payloadFile}: ${(error as Error).message}`,
+        { cause: error },
+      );
+    }
+    payload = parseJsonObject(text, `--payload file ${payloadFile}`);
+  }
+  return output(
+    {
+      dry_run: await client(context, factory).call("dry_run_jira_trigger", {
+        trigger_id: positionals[0],
+        ...(overrides !== undefined ? { sample_overrides: overrides } : {}),
+        ...(payload !== undefined ? { payload } : {}),
+      }),
+    },
+    context,
+  );
+}
+
+const TRIGGER_FIELD_FLAGS = {
+  "--name": "value",
+  "--instance": "value",
+  "--project": "value",
+  "--issue-type": "value",
+  "--fire-on": "value",
+  "--target-status": "value",
+  "--jql": "value",
+  "--target": "value",
+  "--room": "value",
+  "--group": "value",
+  "--agent": "value",
+  "--template": "value",
+  "--thread-by": "value",
+  "--disabled": "boolean",
+} as const;
+
+function triggerFieldArgs(flags: Record<string, string | boolean | string[]>): {
+  params: Record<string, unknown>;
+  targetKind: string | undefined;
+  room: string | undefined;
+  group: string | undefined;
+} {
+  if (flags["--disabled"] && flags["--enabled"])
+    throw new Error("use only one of --disabled and --enabled");
+  const targetKind = checkEnum(
+    flags["--target"] as string | undefined,
+    TARGET_KINDS,
+    "--target",
+  );
+  const params: Record<string, unknown> = {};
+  const take = (flag: string, param: string) => {
+    const value = flags[flag] as string | undefined;
+    if (value !== undefined) params[param] = value;
+  };
+  take("--name", "name");
+  take("--instance", "instance");
+  take("--project", "project_key");
+  take("--issue-type", "issue_type");
+  take("--target-status", "target_status");
+  take("--jql", "jql");
+  take("--agent", "agent_name");
+  take("--template", "message_template");
+  const fireOn = checkEnum(
+    flags["--fire-on"] as string | undefined,
+    FIRE_ON,
+    "--fire-on",
+  );
+  if (fireOn !== undefined) params.fire_on = fireOn;
+  const threadBy = checkEnum(
+    flags["--thread-by"] as string | undefined,
+    THREAD_BY,
+    "--thread-by",
+  );
+  if (threadBy !== undefined) params.thread_by = threadBy;
+  if (targetKind !== undefined) params.target_kind = targetKind;
+  if (flags["--disabled"]) params.enabled = false;
+  if (flags["--enabled"]) params.enabled = true;
+  return {
+    params,
+    targetKind,
+    room: flags["--room"] as string | undefined,
+    group: flags["--group"] as string | undefined,
+  };
+}
+
+function resolveTargetIds(
+  targetKind: string,
+  room: string | undefined,
+  group: string | undefined,
+): Record<string, unknown> {
+  if (targetKind === "room") {
+    if (!room || group)
+      throw new Error("--target room requires --room <id> and no --group");
+    return { target_room_id: room };
+  }
+  if (!group || room)
+    throw new Error("--target group requires --group <id> and no --room");
+  return { target_group_id: group };
+}
+
+async function jiraTriggerAdd(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, { ...TRIGGER_FIELD_FLAGS });
+  if (positionals.length) throw new Error(`usage: ${JIRA_TRIGGERS_USAGE}`);
+  const { params, targetKind, room, group } = triggerFieldArgs(flags);
+  const name = params.name as string | undefined;
+  const instance = params.instance as string | undefined;
+  const fireOn = params.fire_on as string | undefined;
+  const template = params.message_template as string | undefined;
+  const agent = params.agent_name as string | undefined;
+  if (!name || !instance || !fireOn || !template || !targetKind || !agent)
+    throw new Error(
+      "triggers add requires --name --instance --fire-on --template --target room|group (--room|--group) --agent",
+    );
+  return output(
+    {
+      trigger: await client(context, factory).call("create_jira_trigger", {
+        ...params,
+        ...resolveTargetIds(targetKind, room, group),
+      }),
+    },
+    context,
+  );
+}
+
+async function jiraTriggerUpdate(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    ...TRIGGER_FIELD_FLAGS,
+    "--enabled": "boolean",
+  });
+  requireCount(
+    positionals,
+    1,
+    "switch-axi jira triggers update <id> [fields ...]",
+  );
+  const { params, targetKind, room, group } = triggerFieldArgs(flags);
+  const fields: Record<string, unknown> = { ...params };
+  if (targetKind !== undefined) {
+    Object.assign(fields, resolveTargetIds(targetKind, room, group));
+  } else if (room !== undefined || group !== undefined) {
+    throw new Error("--room/--group require --target room|group");
+  }
+  if (!Object.keys(fields).length)
+    throw new Error("triggers update needs at least one field flag");
+  return output(
+    {
+      trigger: await client(context, factory).call("update_jira_trigger", {
+        trigger_id: positionals[0],
+        ...fields,
+      }),
+    },
+    context,
+  );
+}
+
+async function jiraTriggerDelete(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+  confirm: Confirm,
+): Promise<string> {
+  const { positionals } = parseArgs(args, {});
+  requireCount(positionals, 1, "switch-axi jira triggers delete <id>");
+  const answer = await confirm(
+    `Delete Jira trigger ${positionals[0]}? Type yes to confirm: `,
+  );
+  if (!["yes", "y"].includes(answer.trim().toLowerCase()))
+    throw new Error("delete cancelled");
+  return output(
+    {
+      delete: await client(context, factory).call("delete_jira_trigger", {
+        trigger_id: positionals[0],
+      }),
+    },
+    context,
+  );
+}
+
+async function jiraDeliveries(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    "--instance": "value",
+    "--rule": "value",
+    "--limit": "value",
+  });
+  if (positionals.length !== 1 || positionals[0] !== "list")
+    throw new Error(`usage: ${JIRA_DELIVERIES_USAGE}`);
+  const limit = flags["--limit"] ? Number(flags["--limit"]) : undefined;
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
+    throw new Error("--limit must be a positive integer");
+  return output(
+    {
+      deliveries: await client(context, factory).call("list_jira_deliveries", {
+        ...(flags["--instance"] ? { instance: flags["--instance"] } : {}),
+        ...(flags["--rule"] ? { rule_id: flags["--rule"] } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }),
+    },
+    context,
+  );
+}
+
+async function jiraAgentOptions(
+  args: string[],
+  context: CommandContext,
+  factory: ClientFactory,
+): Promise<string> {
+  const { positionals, flags } = parseArgs(args, {
+    "--room": "value",
+    "--group": "value",
+  });
+  requireCount(positionals, 0, JIRA_AGENT_OPTIONS_USAGE);
+  const room = flags["--room"] as string | undefined;
+  const group = flags["--group"] as string | undefined;
+  if (Boolean(room) === Boolean(group))
+    throw new Error(`usage: ${JIRA_AGENT_OPTIONS_USAGE}`);
+  return output(
+    {
+      agents: await client(context, factory).call("list_jira_agent_options", {
+        ...(room ? { room_id: room } : {}),
+        ...(group ? { group_id: group } : {}),
+      }),
+    },
+    context,
+  );
 }
 
 export async function opsCommand(

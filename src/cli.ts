@@ -6,6 +6,7 @@ import {
   authCommand,
   fetchCommand,
   HELP,
+  jiraCommand,
   opsCommand,
   participantsCommand,
   readCommand,
@@ -16,8 +17,8 @@ import { render } from "./render.js";
 import { VERSION } from "./version.js";
 
 export const TOP_HELP = `usage: switch-axi [--cwd <dir>] [--agent <slug>] <command> [flags]
-commands[9]:
-  auth, rooms, read, participants, send, attach, fetch, agents, ops
+commands[10]:
+  auth, rooms, read, participants, send, attach, fetch, agents, ops, jira
 output:
   Default output is TOON. Use --json for JSON.
   Sends, attachments, and room creation are non-idempotent. Do not retry an ambiguous timeout.
@@ -29,11 +30,14 @@ examples:
   switch-axi send <room_id> "status?" --to pm
   switch-axi attach <room_id> ./plan.md
   switch-axi agents create --type opencode --name helper --desc "Helps triage"
+  switch-axi jira triggers list
 note:
   agents create needs a gateway permission grant from the target agent's owner.
   Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset.
   Create writes <workdir>/.switch/agents/<name>.json; do not use bare MCP create_agent alone.
   Create queues the working directory for Console startup and asks a running Console to open it immediately.
+  A Jira instance is server configuration only: there is no instances add/create command.
+  Webhook secret reveal and rotation stay admin-UI-only (admin login required).
 `;
 
 type MainOptions = {
@@ -104,6 +108,7 @@ export async function main(options: MainOptions = {}): Promise<void> {
       fetch: (args) => fetchCommand(args, context),
       agents: (args) => agentsCommand(args, context),
       ops: (args) => opsCommand(args, context),
+      jira: (args) => jiraCommand(args, context),
       update: () => {
         throw new Error("self-update is not supported");
       },
