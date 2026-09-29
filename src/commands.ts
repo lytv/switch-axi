@@ -112,7 +112,7 @@ export const HELP = {
     "List, show, or create Switch agents. Most callers get a permission error on create unless the target agent's owner granted it in the gateway settings. Defaults use $XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json, or ~/.config when unset (one file for every coding agent). Create writes <workdir>/.switch/agents/<name>.json - do not use bare MCP create_agent alone. After create, the working directory is saved to $XDG_CONFIG_HOME/switch-axi/pending-locations.json for the next Console start, and a running Console is told to open it immediately when its control file is reachable; a closed or unreachable Console is not a create failure. Local agents also need a one-time auto-approve toggle in Console settings for unattended operation.",
     {
       "--type":
-        "agent type: claude-code|codex|opencode (create; optional if set in defaults)",
+        "agent type: claude-code|codex|opencode|pi (create; optional if set in defaults)",
       "--name": "agent name (create)",
       "--desc": "agent description (create)",
       "--option": "extra k=v option; repeat (create)",
@@ -448,12 +448,12 @@ export async function agentsCommand(
     );
   if (args[0] === "create") return createAgent(args.slice(1), context, factory);
   throw new Error(
-    "usage: switch-axi agents list|show <agent_id>|create --type <claude-code|codex|opencode> --name <name> --desc <description>",
+    "usage: switch-axi agents list|show <agent_id>|create --type <claude-code|codex|opencode|pi> --name <name> --desc <description>",
   );
 }
 
 const createUsage =
-  "switch-axi agents create --type <claude-code|codex|opencode> --name <name> --desc <description> [--option k=v ...] [--icon-url <url>] [--display-name <name>] [--auto-session|--no-auto-session] [--repo-dir <path>] [--no-clone] [--owner-only|--anyone]";
+  "switch-axi agents create --type <claude-code|codex|opencode|pi> --name <name> --desc <description> [--option k=v ...] [--icon-url <url>] [--display-name <name>] [--auto-session|--no-auto-session] [--repo-dir <path>] [--no-clone] [--owner-only|--anyone]";
 
 async function createAgent(
   args: string[],

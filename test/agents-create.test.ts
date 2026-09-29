@@ -472,7 +472,7 @@ describe("agents create", () => {
         context,
         factory,
       ),
-    ).rejects.toThrow("--type must be one of claude-code, codex, opencode");
+    ).rejects.toThrow("--type must be one of claude-code, codex, opencode, pi");
     await expect(
       agentsCommand(
         [

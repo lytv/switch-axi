@@ -1,6 +1,6 @@
 ---
 name: switch-axi
-description: Use the Switch AXI CLI for rooms, messages, media, and agent create. Load whenever the user asks to create a new Switch agent, or to run switch-axi. Prefer this over bare MCP create_agent. Covers Claude Code, OpenCode, and Codex creators.
+description: Use the Switch AXI CLI for rooms, messages, media, and agent create. Load whenever the user asks to create a new Switch agent, or to run switch-axi. Prefer this over bare MCP create_agent. Covers Claude Code, OpenCode, Codex, and Pi creators.
 ---
 
 # switch-axi
@@ -72,7 +72,7 @@ and sets server `repo_dir` / `auto_session` from defaults.
 | Flag                                   | When                                                  |
 | -------------------------------------- | ----------------------------------------------------- |
 | `--name`, `--desc`                     | Always required                                       |
-| `--type opencode\|codex\|claude-code`  | Only to override defaults `agent_type`                |
+| `--type opencode\|codex\|claude-code\|pi` | Only to override defaults `agent_type`             |
 | `--no-clone`                           | Target dir must not be cloned (reuse existing folder) |
 | `--repo-dir <path>`                    | Override computed `<base_working_dir>/<name>`         |
 | `--auto-session` / `--no-auto-session` | Override defaults                                     |
