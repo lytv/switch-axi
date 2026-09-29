@@ -23,6 +23,7 @@
     "dist",
     "skills/switch-axi",
     "skills/switch-room-setup",
+    "skills/switch-jira",
     "LICENSE",
     "README.md"
   ],
