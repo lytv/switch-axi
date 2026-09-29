@@ -69,15 +69,15 @@ and sets server `repo_dir` / `auto_session` from defaults.
 
 ### Flags you still pass when needed
 
-| Flag                                   | When                                                  |
-| -------------------------------------- | ----------------------------------------------------- |
-| `--name`, `--desc`                     | Always required                                       |
+| Flag                                      | When                                                  |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `--name`, `--desc`                        | Always required                                       |
 | `--type opencode\|codex\|claude-code\|pi` | Only to override defaults `agent_type`                |
-| `--no-clone`                           | Target dir must not be cloned (reuse existing folder) |
-| `--repo-dir <path>`                    | Override computed `<base_working_dir>/<name>`         |
-| `--auto-session` / `--no-auto-session` | Override defaults                                     |
-| `--owner-only` / `--anyone`            | Override defaults                                     |
-| `--option k=v`                         | Extra known-agent options                             |
+| `--no-clone`                              | Target dir must not be cloned (reuse existing folder) |
+| `--repo-dir <path>`                       | Override computed `<base_working_dir>/<name>`         |
+| `--auto-session` / `--no-auto-session`    | Override defaults                                     |
+| `--owner-only` / `--anyone`               | Override defaults                                     |
+| `--option k=v`                            | Extra known-agent options                             |
 
 If `<base_working_dir>/<name>` already exists and `git_repo_url` is set, create fails unless you pass `--no-clone` or a free `--repo-dir`.
 
