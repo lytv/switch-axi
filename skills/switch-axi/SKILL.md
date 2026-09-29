@@ -39,7 +39,7 @@ CLI defaults load from `$XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json` 
 ~/.config/switch-axi/agent-create-defaults.json
 ```
 
-Claude, OpenCode, and Codex must use the same config home. Flags override the file.
+Claude, OpenCode, Codex, and Pi must use the same config home. Flags override the file.
 
 Typical posture B (new folder per agent name):
 
@@ -72,7 +72,7 @@ and sets server `repo_dir` / `auto_session` from defaults.
 | Flag                                   | When                                                  |
 | -------------------------------------- | ----------------------------------------------------- |
 | `--name`, `--desc`                     | Always required                                       |
-| `--type opencode\|codex\|claude-code\|pi` | Only to override defaults `agent_type`             |
+| `--type opencode\|codex\|claude-code\|pi` | Only to override defaults `agent_type`                |
 | `--no-clone`                           | Target dir must not be cloned (reuse existing folder) |
 | `--repo-dir <path>`                    | Override computed `<base_working_dir>/<name>`         |
 | `--auto-session` / `--no-auto-session` | Override defaults                                     |
