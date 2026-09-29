@@ -1,6 +1,6 @@
 ---
 name: switch-axi
-description: Use the Switch AXI CLI for rooms, messages, media, and agent create. Load whenever the user asks to create a new Switch agent, or to run switch-axi. Prefer this over bare MCP create_agent. Covers Claude Code, OpenCode, and Codex creators.
+description: Use the Switch AXI CLI for rooms, messages, media, and agent create. Load whenever the user asks to create a new Switch agent, or to run switch-axi. Prefer this over bare MCP create_agent. Covers Claude Code, OpenCode, Codex, and Pi creators.
 ---
 
 # switch-axi
@@ -39,7 +39,7 @@ CLI defaults load from `$XDG_CONFIG_HOME/switch-axi/agent-create-defaults.json` 
 ~/.config/switch-axi/agent-create-defaults.json
 ```
 
-Claude, OpenCode, and Codex must use the same config home. Flags override the file.
+Claude, OpenCode, Codex, and Pi must use the same config home. Flags override the file.
 
 Typical posture B (new folder per agent name):
 
@@ -69,15 +69,15 @@ and sets server `repo_dir` / `auto_session` from defaults.
 
 ### Flags you still pass when needed
 
-| Flag                                   | When                                                  |
-| -------------------------------------- | ----------------------------------------------------- |
-| `--name`, `--desc`                     | Always required                                       |
-| `--type opencode\|codex\|claude-code`  | Only to override defaults `agent_type`                |
-| `--no-clone`                           | Target dir must not be cloned (reuse existing folder) |
-| `--repo-dir <path>`                    | Override computed `<base_working_dir>/<name>`         |
-| `--auto-session` / `--no-auto-session` | Override defaults                                     |
-| `--owner-only` / `--anyone`            | Override defaults                                     |
-| `--option k=v`                         | Extra known-agent options                             |
+| Flag                                      | When                                                  |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `--name`, `--desc`                        | Always required                                       |
+| `--type opencode\|codex\|claude-code\|pi` | Only to override defaults `agent_type`                |
+| `--no-clone`                              | Target dir must not be cloned (reuse existing folder) |
+| `--repo-dir <path>`                       | Override computed `<base_working_dir>/<name>`         |
+| `--auto-session` / `--no-auto-session`    | Override defaults                                     |
+| `--owner-only` / `--anyone`               | Override defaults                                     |
+| `--option k=v`                            | Extra known-agent options                             |
 
 If `<base_working_dir>/<name>` already exists and `git_repo_url` is set, create fails unless you pass `--no-clone` or a free `--repo-dir`.
 

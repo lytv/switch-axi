@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
-export const AGENT_TYPES = ["claude-code", "codex", "opencode"] as const;
+export const AGENT_TYPES = ["claude-code", "codex", "opencode", "pi"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type AgentCreateDefaults = {
